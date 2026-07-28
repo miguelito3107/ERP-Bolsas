@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Maná - Cierre e Inventario</title>
+    <script src="https://cdn.jsdelivr.net/npm/tailwindcss-cdn@3.4.10/tailwindcss.js"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .modal { display: none; }
+        .modal.active { display: flex; }
+    </style>
+</head>
+<body class="bg-gray-100 pb-24">
+
+    <header class="bg-blue-600 text-white p-4 sticky top-0 z-40 shadow-md">
+        <h1 class="text-xl font-bold text-center">MANÁ - SISTEMA DE CIERRE</h1>
+        <p class="text-xs text-center opacity-80 flex justify-center items-center gap-1">
+            Tasa BCV Activa: <span id="bcv-badge" class="bg-blue-800 px-2 py-0.5 rounded font-mono font-bold">Cargando...</span>
+        </p>
+    </header>
+
+    <main class="p-4 max-w-md mx-auto">
+
+        <div id="tab-rescate" class="tab-content active space-y-4">
+            <h2 class="text-lg font-bold text-gray-800">Resumen de Caja Real</h2>
+            <div class="bg-white p-4 rounded-xl shadow space-y-3">
+                <div class="flex justify-between border-b pb-2">
+                    <span class="text-gray-600">En la Calle (Clientes):</span>
+                    <span id="txt-calle" class="font-bold text-orange-600">$0.00</span>
+                </div>
+                <div class="flex justify-between border-b pb-2">
+                    <span class="text-gray-600">En Caja Real (Cobrado):</span>
+                    <span id="txt-caja" class="font-bold text-green-600">$0.00</span>
+                </div>
+                <div class="flex justify-between border-b pb-2 text-gray-600">
+                    <span>Mis Deudas (USDT/Cashea):</span>
+                    <span id="txt-deuda-total" class="font-bold text-purple-600">0.00 USD</span>
+                </div>
+                <div class="flex justify-between border-b pb-2 text-xs text-red-600 font-semibold">
+                    <span>Brecha Cambiaria Estimada:</span>
+                    <span id="txt-brecha">-$0.00</span>
+                </div>
+                <div id="semaforo" class="p-4 rounded-lg text-center font-bold text-white bg-blue-500 mb-2">
+                    DISPONIBLE EN NETO: <span id="txt-recompra">$0.00</span>
+                </div>
+
+                <button id="btn-cierre" onclick="descargarCierreGeneralCSV()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow flex items-center justify-center gap-2 text-sm transition mt-4">
+                    <span>📥</span> <span>Descargar Cierre General (.csv)</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="tab-compras" class="tab-content space-y-4">
+            <h2 class="text-lg font-bold text-gray-800">Registrar Factura de Compra</h2>
+            
+            <div class="bg-white p-4 rounded-xl shadow space-y-4">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700">Fecha de Factura</label>
+                        <input type="date" id="viaje-fecha" class="w-full mt-1 p-2 border rounded-lg bg-gray-50 text-sm font-semibold text-gray-800">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700">Tasa BCV del Día</label>
+                        <input type="number" id="viaje-bcv" step="0.0001" class="w-full mt-1 p-2 border rounded-lg bg-gray-100 font-mono font-bold text-sm" readonly>
+                    </div>
+                </div>
+
+                <div class="w-full">
+                    <label class="block text-xs font-bold text-gray-700">Costo Flete/Taxi de este viaje (Bs.)</label>
+                    <input type="number" id="viaje-taxi-bs" step="0.01" placeholder="Ej: 1200" class="w-full mt-1 p-2 border rounded-lg bg-gray-50 font-semibold text-blue-600 text-sm">
+                </div>
+
+                <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <label class="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer">
+                        <input type="checkbox" id="viaje-flete-compartido" class="w-4 h-4 rounded text-blue-600">
+                        ¿Compartir este flete proporcionalmente con otra factura?
+                    </label>
+                </div>
+
+                <div class="bg-blue-50 p-3 rounded-lg border border-blue-200 space-y-2">
+                    <label class="flex items-center gap-2 text-xs font-bold text-blue-900 uppercase cursor-pointer">
+                        <input type="checkbox" id="viaje-cashea" onchange="toggleCasheaCampos()" class="w-4 h-4 rounded text-blue-600">
+                        ¿Esta compra es por Cashea?
+                    </label>
+                    <div id="campos-cashea" class="hidden grid grid-cols-2 gap-2 pt-1 border-t border-blue-200">
+                        <div>
+                            <label class="text-[10px] font-bold text-blue-800 block">Pago Inicial (Bs.)</label>
+                            <input type="number" id="cashea-inicial-bs" step="0.01" oninput="calcularRestanteCashea()" placeholder="Ej: 2500" class="w-full p-2 border rounded-lg text-sm bg-white font-semibold text-blue-700">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-blue-800 block">Quedo Debiendo ($)</label>
+                            <input type="number" id="cashea-restante-usd" step="0.01" class="w-full p-2 border rounded-lg text-sm bg-gray-100 font-bold text-purple-700" readonly>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-t pt-2">
+                    <p class="text-xs font-bold text-gray-500 uppercase mb-2">Añadir Artículos al Lote de la Factura</p>
+                    <div class="space-y-2 relative">
+                        <label class="text-[11px] text-gray-600 block font-semibold">Buscar Código de Producto</label>
+                        <input type="text" id="prod-buscar" oninput="filtrarProductos()" onfocus="mostrarListaProductos()" placeholder="Escriba para filtrar..." class="w-full p-2 border rounded-lg text-sm bg-white font-mono font-bold text-blue-700">
+                        <div id="dropdown-productos" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 divide-y divide-gray-100"></div>
+
+                        <div class="grid grid-cols-2 gap-2 pt-1">
+                            <div>
+                                <label class="text-[10px] text-gray-500 block font-semibold">Base Imponible Unit. (Bs)</label>
+                                <input type="number" id="prod-precio-bs" step="0.01" placeholder="Ej: 317.50" class="w-full p-2 border rounded-lg text-sm bg-gray-50">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-500 block font-semibold">Cantidad Bultos</label>
+                                <input type="number" id="prod-cant" placeholder="Ej: 10" class="w-full p-2 border rounded-lg text-sm bg-gray-50">
+                            </div>
+                        </div>
+                        <button type="button" onclick="agregarProductoAlLote()" class="w-full bg-gray-800 text-white p-2 rounded-lg text-xs font-bold">+ Agregar Línea Fiscal a la Factura</button>
+                    </div>
+                </div>
+
+                <div id="pre-lista" class="bg-gray-50 p-2 rounded-lg text-xs space-y-1 hidden">
+                    <p class="font-bold text-gray-600 border-b pb-1">Artículos en esta factura:</p>
+                    <div id="pre-lista-items" class="space-y-1 text-gray-700 font-mono"></div>
+                    <p class="text-right font-bold pt-1 border-t text-gray-800">Total Factura con IVA: $<span id="pre-total-merc">0.00</span></p>
+                </div>
+
+                <button type="button" onclick="procesarViajeCompra()" class="w-full bg-blue-600 text-white p-3 rounded-lg font-bold shadow text-sm">Guardar Factura Completa</button>
+            </div>
+
+            <div class="pt-2">
+                <label class="block text-xs font-bold text-gray-700 mb-1">🔍 Buscar Facturas</label>
+                <input type="text" id="compra-filtro" oninput="renderCompras()" placeholder="Filtrar por fecha, mes, monto o # de factura..." class="w-full p-2 border rounded-lg text-xs bg-white font-medium text-gray-700 shadow-sm">
+            </div>
+
+            <div class="flex justify-between items-center pt-1">
+                <h3 class="font-bold text-gray-700 text-sm">Historial de Facturas</h3>
+            </div>
+            <div id="lista-compras" class="space-y-2"></div>
+        </div>
+
+        <div id="tab-ventas" class="tab-content space-y-4">
+            <h2 class="text-lg font-bold text-gray-800">Despachos a Clientes</h2>
+            <form id="form-ventas" class="bg-white p-4 rounded-xl shadow space-y-4" onsubmit="agregarVenta(event)">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700">Fecha de Venta</label>
+                    <input type="date" id="venta-fecha" class="w-full mt-1 p-2.5 border rounded-lg bg-gray-50 text-sm font-semibold text-gray-800">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700">Cliente</label>
+                        <input type="text" id="venta-cliente" placeholder="Nombre" required class="w-full mt-1 p-3 border rounded-lg text-sm bg-gray-50">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700">Monto Venta ($)</label>
+                        <input type="number" id="venta-monto" step="0.01" required class="w-full mt-1 p-3 border rounded-lg text-sm bg-gray-50">
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-orange-500 text-white p-3 rounded-lg font-bold text-sm">Registrar Crédito Cliente</button>
+            </form>
+            <div id="lista-ventas" class="space-y-2"></div>
+        </div>
+
+        <div id="tab-creditos" class="tab-content space-y-4">
+            <h2 class="text-lg font-bold text-gray-800">Obligaciones (USDT / Cashea)</h2>
+            <form id="form-creditos" class="bg-white p-4 rounded-xl shadow space-y-4" onsubmit="onSubmitCredito(event)">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700">Fecha Registro</label>
+                        <input type="date" id="credito-fecha" class="w-full mt-1 p-2.5 border rounded-lg bg-gray-50 text-sm font-semibold text-gray-800">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700">Tasa Cambio P2P/Ref</label>
+                        <input type="number" id="credito-p2p" step="0.01" required placeholder="Ej: 64.50" class="w-full mt-1 p-2.5 border rounded-lg text-sm bg-gray-50">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700">Concepto / Acreedor</label>
+                    <input type="text" id="credito-fuente" placeholder="Ej: Proveedor o Cuota Cashea" required class="w-full mt-1 p-3 border rounded-lg text-sm bg-gray-50">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700">Monto ($ o USDT)</label>
+                    <input type="number" id="credito-monto" step="0.01" required class="w-full mt-1 p-3 border rounded-lg text-sm bg-gray-50">
+                </div>
+                <button type="submit" class="w-full bg-purple-600 text-white p-3 rounded-lg font-bold text-sm">Registrar Obligación Manual</button>
+            </form>
+            <div id="lista-creditos" class="space-y-2"></div>
+        </div>
+
+        <div id="tab-inventario" class="tab-content space-y-4">
+            <h2 class="text-lg font-bold text-gray-800">Dashboard de Inventario Real</h2>
+            <div class="bg-white p-4 rounded-xl shadow">
+                <p class="text-xs font-bold text-gray-500 uppercase mb-3 border-b pb-1">Bultos Disponibles por Producto</p>
+                <div id="dashboard-inventario" class="space-y-2 max-h-[60vh] overflow-y-auto divide-y divide-gray-100"></div>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="modal-detalle" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+        <div class="bg-white rounded-xl max-w-sm w-full max-h-[80vh] flex flex-col p-4 shadow-2xl">
+            <h3 class="text-base font-bold text-gray-800 border-b pb-2">Desglose Técnico Fiscal</h3>
+            <div id="modal-detalle-body" class="overflow-y-auto flex-1 my-3 space-y-3 text-xs text-gray-600"></div>
+            <button onclick="cerrarModal('modal-detalle')" class="w-full bg-gray-800 text-white p-2.5 rounded-lg text-sm font-bold">Cerrar Ventana</button>
+        </div>
+    </div>
+
+    <div id="modal-editar" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+        <div class="bg-white rounded-xl max-w-sm w-full max-h-[90vh] flex flex-col p-4 shadow-2xl">
+            <h3 id="modal-editar-titulo" class="text-base font-bold text-gray-800 border-b pb-2">Modificar Datos de Registro</h3>
+            <div id="modal-editar-body" class="overflow-y-auto flex-1 my-3 space-y-4 text-xs"></div>
+            <div class="flex gap-2 pt-2 border-t" id="modal-editar-botones">
+                <button onclick="cerrarModal('modal-editar')" class="w-1/2 bg-gray-300 text-gray-700 p-2.5 rounded-lg font-bold">Cancelar</button>
+                <button onclick="guardarEdicionGuardada()" class="w-1/2 bg-blue-600 text-white p-2.5 rounded-lg font-bold">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
+
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around p-2 shadow-lg z-30">
+        <button onclick="switchTab('rescate')" class="flex flex-col items-center text-blue-600 py-1"><span class="text-xl">📊</span><span class="text-xs font-semibold">Rescate</span></button>
+        <button onclick="switchTab('compras')" class="flex flex-col items-center text-gray-500 py-1"><span class="text-xl">🛒</span><span class="text-xs font-semibold">Compras</span></button>
+        <button onclick="switchTab('inventario')" class="flex flex-col items-center text-gray-500 py-1"><span class="text-xl">📦</span><span class="text-xs font-semibold">Inventario</span></button>
+        <button onclick="switchTab('ventas')" class="flex flex-col items-center text-gray-500 py-1"><span class="text-xl">🚛</span><span class="text-xs font-semibold">Clientes</span></button>
+        <button onclick="switchTab('creditos')" class="flex flex-col items-center text-gray-500 py-1"><span class="text-xl">💸</span><span class="text-xs font-semibold">Deudas</span></button>
+    </nav>
+
+    <script>
+        const MAESTRO_PRODUCTOS = [
+            "MB5KGA", "MB2KGA", "MB3KGA", "PB30KGA", "MB1/4TC", 
+            "BBA1KU", "BB30KGA", "MB3KGS", "MB25KGMA", "MB15KGA", 
+            "MB25KGMU", "ENVOEU", "ENVOGP", "BBDUNI", "CGNNTLW", 
+            "MB5KGDY", "MB25KGQP", "PBB40X50", "MB10KGA", "PB2KGA", "PB5KGA"
+        ];
+        let estado = { compras: [], ventas: [], creditos: [] };
+        let loteTemporalProductos = [];
+        let tasaBCVGlobal = 61.63;
+        let objetoEditando = null; 
+
+        if (localStorage.getItem('mana_estado')) {
+            try { estado = JSON.parse(localStorage.getItem('mana_estado')); } catch(e) {}
+        }
+
+        function guardarEnLocalStorage() { localStorage.setItem('mana_estado', JSON.stringify(estado)); }
+        function obtenerFechaActualLocal() { const d = new Date(); return [d.getFullYear(), ('' + (d.getMonth() + 1)).padStart(2, '0'), ('' + d.getDate()).padStart(2, '0')].join('-'); }
+
+        function inicializarFechasFormularios() {
+            const fechaHoy = obtenerFechaActualLocal();
+            if(document.getElementById('viaje-fecha')) document.getElementById('viaje-fecha').value = fechaHoy;
+            if(document.getElementById('venta-fecha')) document.getElementById('venta-fecha').value = fechaHoy;
+            if(document.getElementById('credito-fecha')) document.getElementById('credito-fecha').value = fechaHoy;
+        }
+
+        async function obtenerTasaBCV() {
+            try {
+                const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+                const data = await res.json();
+                if(data && data.promedio) tasaBCVGlobal = parseFloat(data.promedio);
+            } catch (e) {}
+            document.getElementById('bcv-badge').innerText = `Bs. ${tasaBCVGlobal.toFixed(4)}`;
+            if(document.getElementById('viaje-bcv')) document.getElementById('viaje-bcv').value = tasaBCVGlobal.toFixed(4);
+            inicializarFechasFormularios(); actualizarDashboard(); renderCompras(); renderVentas(); renderCreditos(); renderInventario(); construirListaProductos(MAESTRO_PRODUCTOS);
+        }
+        window.onload = obtenerTasaBCV;
+
+        function toggleCasheaCampos() {
+            const activo = document.getElementById('viaje-cashea').checked;
+            document.getElementById('campos-cashea').style.display = activo ? 'grid' : 'none';
+            if(activo) { calcularRestanteCashea(); }
+        }
+
+        function obtenerTotalTemporalUSD() {
+            let totalUSD = 0;
+            const bcv = parseFloat(document.getElementById('viaje-bcv').value) || tasaBCVGlobal;
+            loteTemporalProductos.forEach(p => { totalUSD += ((p.precioBaseBs * 1.16) / bcv) * p.cant; });
+            return totalUSD;
+        }
+
+        function calcularRestanteCashea() {
+            const totalUSD = obtenerTotalTemporalUSD();
+            const bcv = parseFloat(document.getElementById('viaje-bcv').value) || tasaBCVGlobal;
+            const inicialBs = parseFloat(document.getElementById('cashea-inicial-bs').value) || 0;
+            const inicialUSD = inicialBs / bcv;
+            document.getElementById('cashea-restante-usd').value = Math.max(0, totalUSD - inicialUSD).toFixed(2);
+        }
+
+        function construirListaProductos(lista) {
+            const container = document.getElementById('dropdown-productos');
+            container.innerHTML = '';
+            lista.forEach(prod => {
+                const item = document.createElement('div');
+                item.className = "p-3 text-sm font-mono font-bold text-gray-700 hover:bg-blue-50 cursor-pointer";
+                item.innerText = prod;
+                item.onclick = function() { document.getElementById('prod-buscar').value = prod; container.classList.add('hidden'); };
+                container.appendChild(item);
+            });
+        }
+        function filtrarProductos() {
+            const busqueda = document.getElementById('prod-buscar').value.toUpperCase();
+            construirListaProductos(MAESTRO_PRODUCTOS.filter(p => p.toUpperCase().includes(busqueda)));
+            document.getElementById('dropdown-productos').classList.remove('hidden');
+        }
+        function mostrarListaProductos() { document.getElementById('dropdown-productos').classList.remove('hidden'); }
+        document.addEventListener('click', function(e) {
+            if (e.target !== document.getElementById('prod-buscar') && e.target !== document.getElementById('dropdown-productos')) {
+                document.getElementById('dropdown-productos').classList.add('hidden');
+            }
+        });
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            actualizarDashboard();
+            if(tabId === 'inventario') renderInventario();
+        }
+        function abrirModal(id) { document.getElementById(id).classList.add('active'); }
+        function cerrarModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        function agregarProductoAlLote() {
+            const nombre = document.getElementById('prod-buscar').value.trim().toUpperCase();
+            const precioBaseBs = parseFloat(document.getElementById('prod-precio-bs').value);
+            const cant = parseInt(document.getElementById('prod-cant').value);
+            if (!nombre || isNaN(precioBaseBs) || isNaN(cant)) { alert("Complete código, precio base y cantidad."); return; }
+
+            loteTemporalProductos.push({ nombre, precioBaseBs, cant });
+            document.getElementById('prod-buscar').value = ''; document.getElementById('prod-precio-bs').value = ''; document.getElementById('prod-cant').value = '';
+            renderPreLote();
+            if(document.getElementById('viaje-cashea').checked) { calcularRestanteCashea(); }
+        }
+
+        function renderPreLote() {
+            const container = document.getElementById('pre-lista');
+            const itemsCont = document.getElementById('pre-lista-items');
+            if(loteTemporalProductos.length === 0) { container.classList.add('hidden'); return; }
+            container.classList.remove('hidden'); itemsCont.innerHTML = '';
+            let subtotalUSD = 0;
+            const bcv = parseFloat(document.getElementById('viaje-bcv').value) || tasaBCVGlobal;
+            loteTemporalProductos.forEach(p => {
+                const cIvaUSD = (p.precioBaseBs * 1.16) / bcv; subtotalUSD += (cIvaUSD * p.cant);
+                itemsCont.innerHTML += `<div>• ${p.nombre} (x${p.cant}) - Base: Bs.${p.precioBaseBs.toFixed(2)}</div>`;
+            });
+            document.getElementById('pre-total-merc').innerText = subtotalUSD.toFixed(2);
+        }
+
+        function procesarViajeCompra() {
+            if(loteTemporalProductos.length === 0) { alert("Agregue al menos un producto a la factura."); return; }
+            const taxiBs = parseFloat(document.getElementById('viaje-taxi-bs').value) || 0;
+            const bcv = parseFloat(document.getElementById('viaje-bcv').value) || tasaBCVGlobal;
+            const fecha = document.getElementById('viaje-fecha').value || obtenerFechaActualLocal();
+            const compartido = document.getElementById('viaje-flete-compartido').checked;
+            
+            const esCashea = document.getElementById('viaje-cashea').checked;
+            const inicialCasheaBs = parseFloat(document.getElementById('cashea-inicial-bs').value) || 0;
+            const restanteCasheaUSD = parseFloat(document.getElementById('cashea-restante-usd').value) || 0;
+
+            let totalMercUSD = 0;
+            const itemsProcesados = loteTemporalProductos.map(p => {
+                const precioConIvaBs = p.precioBaseBs * 1.16;
+                const costoUSD = precioConIvaBs / bcv;
+                totalMercUSD += (costoUSD * p.cant);
+                return { ...p, costoProvUSD: costoUSD, fleteAsignadoUnit: 0, costoRealUnit: costoUSD, totalFilaUSD: costoUSD * p.cant };
+            });
+
+            const nuevaFactura = {
+                id: Date.now(),
+                fecha,
+                tasaBCV: bcv,
+                taxiBs,
+                compartido,
+                totalUSD: totalMercUSD, 
+                esCashea,
+                inicialCasheaBs,
+                restanteCashea: restanteCasheaUSD,
+                productos: itemsProcesados
+            };
+            estado.compras.push(nuevaFactura);
+
+            if(compartido) {
+                const comprasCompartidasHoy = estado.compras.filter(c => c.fecha === fecha && c.compartido === true);
+                let fleteTotalViajeBs = comprasCompartidasHoy.reduce((acc, curr) => acc + curr.taxiBs, 0);
+                let mercanciaTotalViajeUSD = comprasCompartidasHoy.reduce((acc, curr) => acc + curr.totalUSD, 0);
+                if(mercanciaTotalViajeUSD > 0) {
+                    const fleteTotalUSD = fleteTotalViajeBs / bcv;
+                    const factorFleteGlobal = fleteTotalUSD / mercanciaTotalViajeUSD;
+
+                    estado.compras.forEach(f => {
+                        if(f.fecha === fecha && f.compartido === true) {
+                            f.productos.forEach(p => {
+                                p.fleteAsignadoUnit = p.costoProvUSD * factorFleteGlobal;
+                                p.costoRealUnit = p.costoProvUSD + p.fleteAsignadoUnit;
+                                p.totalFilaUSD = p.costoRealUnit * p.cant;
+                            });
+                            f.totalUSD = f.productos.reduce((sum, p) => sum + p.totalFilaUSD, 0);
+                        }
+                    });
+                }
+            } else {
+                const taxiUSD = taxiBs / bcv;
+                const factorFlete = totalMercUSD > 0 ? (taxiUSD / totalMercUSD) : 0;
+                nuevaFactura.productos.forEach(p => {
+                    p.fleteAsignadoUnit = p.costoProvUSD * factorFlete;
+                    p.costoRealUnit = p.costoProvUSD + p.fleteAsignadoUnit;
+                    p.totalFilaUSD = p.costoRealUnit * p.cant;
+                });
+                nuevaFactura.totalUSD = nuevaFactura.productos.reduce((acc, p) => acc + p.totalFilaUSD, 0);
+            }
+
+            if(esCashea && restanteCasheaUSD > 0) {
+                estado.creditos.push({
+                    id: Date.now() + 1,
+                    fecha,
+                    fuente: `Cashea - Restante Factura #${Date.now().toString().slice(-4)}`,
+                    montoUSDT: restanteCasheaUSD,
+                    tasaP2P: bcv,
+                    tasaBCV: bcv,
+                    brechaCambiaria: 0,
+                    estatus: 'DEBIENDO'
+                });
+            }
+
+            loteTemporalProductos = [];
+            document.getElementById('viaje-taxi-bs').value = '';
+            document.getElementById('viaje-flete-compartido').checked = false;
+            document.getElementById('viaje-cashea').checked = false;
+            document.getElementById('cashea-inicial-bs').value = '';
+            document.getElementById('cashea-restante-usd').value = '';
+            toggleCasheaCampos();
+            guardarEnLocalStorage(); renderPreLote(); renderCompras(); renderCreditos(); renderInventario(); actualizarDashboard();
+        }
+
+        function renderInventario() {
+            const container = document.getElementById('dashboard-inventario');
+            if(!container) return;
+            let conteo = {};
+            MAESTRO_PRODUCTOS.forEach(p => conteo[p] = 0);
+            estado.compras.forEach(f => {
+                f.productos.forEach(p => {
+                    if(conteo[p.nombre] !== undefined) { conteo[p.nombre] += p.cant; } 
+                    else { conteo[p.nombre] = p.cant; }
+                });
+            });
+            container.innerHTML = '';
+            Object.keys(conteo).sort().forEach(prod => {
+                const bultos = conteo[prod];
+                const item = document.createElement('div');
+                item.className = "flex justify-between items-center py-2.5 text-sm font-mono";
+                item.innerHTML = `
+                    <span class="font-bold text-gray-700">${prod}</span>
+                    <span class="px-3 py-1 rounded-full font-bold text-xs ${bultos > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-400'}">
+                        ${bultos} Bultos
+                    </span>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function verDetalleCompra(id) {
+            const f = estado.compras.find(c => c.id === id);
+            if(!f) return;
+            let h = `<p><b>Fecha:</b> ${f.fecha}</p><p><b>Tasa BCV:</b> Bs. ${f.tasaBCV.toFixed(4)}</p><p><b>Flete Declarado:</b> Bs. ${f.taxiBs.toFixed(2)} ${f.compartido ? '<span class="text-blue-600 font-bold">(Compartido)</span>':''}</p>`;
+            if(f.esCashea) {
+                h += `<div class='bg-purple-50 p-2 border border-purple-200 rounded mt-1 text-[11px]'><p class='font-bold text-purple-800'>Financiamiento Cashea:</p><p>• Inicial Pagada: Bs. ${f.inicialCasheaBs.toFixed(2)} ($${(f.inicialCasheaBs/f.tasaBCV).toFixed(2)})</p><p class='font-bold text-red-600'>• Quedó Debiendo: $${f.restanteCashea.toFixed(2)}</p></div>`;
+            }
+            h += `<hr class='my-2'>`;
+            f.productos.forEach(p => {
+                h += `<div class='bg-gray-50 p-2 rounded font-mono border mb-1'>
+                    <p class='font-bold text-blue-800'>${p.nombre} (x${p.cant})</p>
+                    <p>• Costo Prov: $${p.costoProvUSD.toFixed(4)}</p>
+                    <p class='text-orange-600 font-medium'>• +Flete Proporcional: +$${p.fleteAsignadoUnit.toFixed(4)}</p>
+                    <p class='font-bold text-gray-700 border-t pt-0.5 mt-0.5'>REAL COSTO UNIT: $${p.costoRealUnit.toFixed(4)}</p>
+                    <p class='text-right text-gray-400'>Subtotal Fila: $${p.totalFilaUSD.toFixed(2)}</p>
+                </div>`;
+            });
+            h += `<p class='text-right font-bold text-sm text-blue-700 pt-1'>Total Neto Ajustado: $${f.totalUSD.toFixed(2)}</p>`;
+            document.getElementById('modal-detalle-body').innerHTML = h; abrirModal('modal-detalle');
+        }
+
+        function renderCompras() {
+            const lista = document.getElementById('lista-compras');
+            if(!lista) return;
+            const filtro = document.getElementById('compra-filtro').value.trim().toLowerCase();
+
+            let comprasFiltradas = estado.compras;
+            if(filtro) {
+                comprasFiltradas = estado.compras.filter(f => {
+                    const idString = `#${f.id.toString().slice(-5)}`.toLowerCase();
+                    const fechaString = f.fecha.toLowerCase();
+                    const montoString = f.totalUSD.toFixed(2).toString();
+                    return idString.includes(filtro) || fechaString.includes(filtro) || montoString.includes(filtro);
+                });
+            }
+
+            if(comprasFiltradas.length === 0) { lista.innerHTML = '<p class="text-sm text-gray-400 italic text-center py-2">No se encontraron facturas.</p>'; return; }
+            lista.innerHTML = '';
+            comprasFiltradas.forEach(f => {
+                const el = document.createElement('div');
+                el.className = "bg-white p-3 rounded-lg shadow border-l-4 border-blue-500 text-sm space-y-1 cursor-pointer";
+                el.setAttribute('onclick', `if(event.target.tagName !== 'BUTTON') verDetalleCompra(${f.id})`);
+                el.innerHTML = `
+                    <div class="flex justify-between font-bold text-gray-800">
+                        <span>Factura #${f.id.toString().slice(-5)} ${f.compartido ? '🔗':''}</span>
+                        <span class="text-blue-600">$${f.totalUSD.toFixed(2)}</span>
+                    </div>
+                    <div class="text-[11px] text-gray-400 font-semibold flex justify-between"><span>Fecha: ${f.fecha}</span><span>${f.productos.length} Items</span></div>
+                    <div class="flex justify-end gap-3 text-xs pt-2 border-t mt-1">
+                        <button onclick="prepararEdicion('COMPRA', ${f.id})" class="text-blue-600 font-bold hover:underline">✏️ Editar</button>
+                        <button onclick="eliminarRegistro('COMPRA', ${f.id})" class="text-red-600 font-bold hover:underline">🗑️ Borrar</button>
+                    </div>`;
+                lista.appendChild(el);
+            });
+        }
+
+        function agregarVenta(e) {
+            e.preventDefault();
+            const monto = parseFloat(document.getElementById('venta-monto').value);
+            estado.ventas.push({ 
+                id: Date.now(), 
+                fecha: document.getElementById('venta-fecha').value || obtenerFechaActualLocal(), 
+                cliente: document.getElementById('venta-cliente').value, 
+                monto: monto, 
+                abonado: 0, 
+                estatus: 'PENDIENTE' 
+            });
+            document.getElementById('venta-cliente').value = ''; document.getElementById('venta-monto').value = '';
+            document.getElementById('venta-fecha').value = obtenerFechaActualLocal();
+            guardarEnLocalStorage(); renderVentas(); actualizarDashboard();
+        }
+
+        function abonarAVenta(id) {
+            const v = estado.ventas.find(x => x.id === id);
+            if (!v) return;
+            
+            const saldoPendiente = v.monto - (v.abonado || 0);
+            const inputAbono = prompt(`Saldo pendiente: $${saldoPendiente.toFixed(2)}\nIngrese el monto del abono ($):`);
+            
+            if (inputAbono === null) return; 
+            const montoAbono = parseFloat(inputAbono);
+            
+            if (isNaN(montoAbono) || montoAbono <= 0) {
+                alert("Por favor, ingrese un monto de abono válido.");
+                return;
+            }
+            if (montoAbono > saldoPendiente) {
+                alert(`El abono ($${montoAbono.toFixed(2)}) no puede ser mayor al saldo pendiente ($${saldoPendiente.toFixed(2)}).`);
+                return;
+            }
+            
+            v.abonado = (v.abonado || 0) + montoAbono;
+            
+            if (v.abonado >= v.monto) { v.estatus = 'COBRADO'; } 
+            else { v.estatus = 'PENDIENTE'; }
+            
+            guardarEnLocalStorage(); renderVentas(); actualizarDashboard();
+        }
+
+        function renderVentas() {
+            const lista = document.getElementById('lista-ventas');
+            if(!lista) return;
+            if(estado.ventas.length === 0) { lista.innerHTML = '<p class="text-sm text-gray-400 italic text-center py-2">Sin despachos.</p>'; return; }
+            lista.innerHTML = '';
+            estado.ventas.forEach(v => {
+                const item = document.createElement('div');
+                const saldoPendiente = v.monto - (v.abonado || 0);
+                item.className = `bg-white p-3 rounded-lg shadow border-l-4 ${v.estatus==='COBRADO'?'border-green-500':'border-orange-500'} mb-2`;
+                item.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="font-bold text-gray-800">${v.cliente}</p>
+                            <p class="text-xs text-gray-500">Total: $${v.monto.toFixed(2)} — ${v.fecha}</p>
+                            <p class="text-xs font-semibold ${saldoPendiente > 0 ? 'text-orange-600' : 'text-green-600'}">
+                                Abonado: $${(v.abonado || 0).toFixed(2)} | Pendiente: $${saldoPendiente.toFixed(2)}
+                            </p>
+                        </div>
+                        <div>
+                            ${v.estatus==='PENDIENTE' ? 
+                                `<button onclick="abonarAVenta(${v.id})" class="bg-orange-500 hover:bg-orange-600 text-white text-xs px-3 py-1.5 rounded font-bold transition">💵 Abonar</button>` : 
+                                `<span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded font-bold">Cobrado Completo</span>`
+                            }
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-3 text-[11px] border-t pt-1.5 mt-1">
+                        <button onclick="prepararEdicion('VENTA', ${v.id})" class="text-blue-600 font-semibold">✏️ Editar</button>
+                        <button onclick="eliminarRegistro('VENTA', ${v.id})" class="text-red-500 font-semibold">🗑️ Eliminar</button>
+                    </div>`;
+                lista.appendChild(item);
+            });
+        }
+
+        function onSubmitCredito(e) {
+            e.preventDefault();
+            const fuente = document.getElementById('credito-fuente').value; const montoUSDT = parseFloat(document.getElementById('credito-monto').value);
+            const tasaP2P = parseFloat(document.getElementById('credito-p2p').value); const fecha = document.getElementById('credito-fecha').value || obtenerFechaActualLocal();
+            estado.creditos.push({ id: Date.now(), fecha, fuente, montoUSDT, tasaP2P, tasaBCV: tasaBCVGlobal, brechaCambiaria: ((montoUSDT * tasaP2P) / tasaBCVGlobal) - montoUSDT, estatus: 'DEBIENDO' });
+            document.getElementById('form-creditos').reset(); document.getElementById('credito-fecha').value = obtenerFechaActualLocal();
+            guardarEnLocalStorage(); renderCreditos(); actualizarDashboard();
+        }
+
+        function prepararEdicion(tipo, id) {
+            objetoEditando = { tipo, id };
+            let h = '';
+            document.getElementById('modal-editar-titulo').innerText = "Modificar Datos";
+            if(tipo === 'COMPRA') {
+                const f = estado.compras.find(c => c.id === id);
+                h += `<div><label class='block font-bold mb-1'>Fecha Factura</label><input type='date' id='edit-f-fecha' class='w-full p-2 border rounded' value='${f.fecha}'></div>`;
+                h += `<div><label class='block font-bold mb-1'>Flete Declarado (Bs.)</label><input type='number' step='0.01' id='edit-f-taxi' class='w-full p-2 border rounded' value='${f.taxiBs}'></div>`;
+                h += `<hr class='my-2'>`;
+                f.productos.forEach((p, idx) => {
+                    h += `<div class='bg-gray-50 p-2 rounded border mb-2'><p class='font-bold text-blue-700 font-mono'>${p.nombre}</p>
+                    <div class='grid grid-cols-2 gap-2'>
+                        <div><label>Base (Bs)</label><input type='number' step='0.01' id='edit-p-base-${idx}' class='w-full p-1 border rounded' value='${p.precioBaseBs}'></div>
+                        <div><label>Cant</label><input type='number' id='edit-p-cant-${idx}' class='w-full p-1 border rounded' value='${p.cant}'></div>
+                    </div></div>`;
+                });
+            } else if(tipo === 'VENTA') {
+                const v = estado.ventas.find(x => x.id === id);
+                h += `<div><label class='block font-bold mb-1'>Cliente</label><input type='text' id='edit-v-cliente' class='w-full p-2 border rounded' value='${v.cliente}'></div>`;
+                h += `<div><label class='block font-bold mb-1'>Monto Total ($)</label><input type='number' step='0.01' id='edit-v-monto' class='w-full p-2 border rounded' value='${v.monto}'></div>`;
+                h += `<div><label class='block font-bold mb-1'>Total Abonado ($)</label><input type='number' step='0.01' id='edit-v-abonado' class='w-full p-2 border rounded' value='${v.abonado || 0}'></div>`;
+            } else if(tipo === 'CREDITO') {
+                const c = estado.creditos.find(x => x.id === id);
+                h += `<div><label class='block font-bold mb-1'>Monto</label><input type='number' step='0.01' id='edit-c-monto' class='w-full p-2 border rounded' value='${c.montoUSDT}'></div>`;
+            }
+            document.getElementById('modal-editar-body').innerHTML = h; abrirModal('modal-editar');
+        }
+
+        function guardarEdicionGuardada() {
+            const t = objetoEditando.tipo;
+            const id = objetoEditando.id;
+            if(t === 'COMPRA') {
+                const f = estado.compras.find(c => c.id === id);
+                f.fecha = document.getElementById('edit-f-fecha').value;
+                f.taxiBs = parseFloat(document.getElementById('edit-f-taxi').value) || 0;
+                let totalMercUSD = 0;
+                f.productos.forEach((p, idx) => {
+                    p.precioBaseBs = parseFloat(document.getElementById(`edit-p-base-${idx}`).value) || 0;
+                    p.cant = parseInt(document.getElementById(`edit-p-cant-${idx}`).value) || 0;
+                    p.costoProvUSD = (p.precioBaseBs * 1.16) / f.tasaBCV;
+                    totalMercUSD += (p.costoProvUSD * p.cant);
+                });
+                f.totalUSD = totalMercUSD;
+
+                if(f.compartido) {
+                    const comprasCompartidasHoy = estado.compras.filter(x => x.fecha === f.fecha && x.compartido === true);
+                    let fleteTotalViajeBs = comprasCompartidasHoy.reduce((acc, curr) => acc + curr.taxiBs, 0);
+                    let mercanciaTotalViajeUSD = comprasCompartidasHoy.reduce((acc, curr) => acc + curr.totalUSD, 0);
+                    if(mercanciaTotalViajeUSD > 0) {
+                        const factorFleteGlobal = (fleteTotalViajeBs / f.tasaBCV) / mercanciaTotalViajeUSD;
+                        estado.compras.forEach(x => {
+                            if(x.fecha === f.fecha && x.compartido === true) {
+                                x.productos.forEach(p => {
+                                    p.fleteAsignadoUnit = p.costoProvUSD * factorFleteGlobal;
+                                    p.costoRealUnit = p.costoProvUSD + p.fleteAsignadoUnit;
+                                    p.totalFilaUSD = p.costoRealUnit * p.cant;
+                                });
+                                x.totalUSD = x.productos.reduce((sum, p) => sum + p.totalFilaUSD, 0);
+                            }
+                        });
+                    }
+                } else {
+                    const factorFlete = (f.taxiBs / f.tasaBCV) / totalMercUSD;
+                    f.productos.forEach(p => {
+                        p.fleteAsignadoUnit = p.costoProvUSD * factorFlete;
+                        p.costoRealUnit = p.costoProvUSD + p.fleteAsignadoUnit;
+                        p.totalFilaUSD = p.costoRealUnit * p.cant;
+                    });
+                    f.totalUSD = f.productos.reduce((acc, p) => acc + p.totalFilaUSD, 0);
+                }
+            } else if(t === 'VENTA') {
+                const v = estado.ventas.find(x => x.id === id);
+                v.cliente = document.getElementById('edit-v-cliente').value; 
+                v.monto = parseFloat(document.getElementById('edit-v-monto').value) || 0;
+                v.abonado = parseFloat(document.getElementById('edit-v-abonado').value) || 0;
+                if (v.abonado >= v.monto) { v.estatus = 'COBRADO'; } 
+                else { v.estatus = 'PENDIENTE'; }
+            } else if(t === 'CREDITO') {
+                const c = estado.creditos.find(x => x.id === id);
+                c.montoUSDT = parseFloat(document.getElementById('edit-c-monto').value) || 0;
+                c.brechaCambiaria = ((c.montoUSDT * c.tasaP2P) / c.tasaBCV) - c.montoUSDT;
+            }
+            guardarEnLocalStorage(); cerrarModal('modal-editar'); renderCompras(); renderVentas(); renderCreditos(); renderInventario(); actualizarDashboard();
+        }
+
+        function eliminarRegistro(tipo, id) {
+            if(!confirm("¿Eliminar registro?")) return;
+            if(tipo === 'COMPRA') estado.compras = estado.compras.filter(c => c.id !== id);
+            if(tipo === 'VENTA') estado.ventas = estado.ventas.filter(v => v.id !== id);
+            if(tipo === 'CREDITO') estado.creditos = estado.creditos.filter(c => c.id !== id);
+            guardarEnLocalStorage(); renderCompras(); renderVentas(); renderCreditos(); renderInventario(); actualizarDashboard();
+        }
+        
+        function toggleEstatusCredito(id) {
+            const c = estado.creditos.find(x => x.id === id);
+            if(c) {
+                c.estatus = (c.estatus === 'DEBIENDO') ? 'PAGADO' : 'DEBIENDO';
+                guardarEnLocalStorage(); renderCreditos(); actualizarDashboard();
+            }
+        }
+
+        function renderCreditos() {
+            const lista = document.getElementById('lista-creditos');
+            if(!lista) return;
+            if(estado.creditos.length === 0) { lista.innerHTML = '<p class="text-sm text-gray-400 italic text-center py-2">Sin deudas.</p>'; return; }
+            lista.innerHTML = '';
+            estado.creditos.forEach(c => {
+                const item = document.createElement('div');
+                const esDebiendo = c.estatus === 'DEBIENDO';
+                item.className = `bg-white p-3 rounded-lg shadow border-l-4 ${esDebiendo ? 'border-purple-500' : 'border-gray-400'} mb-2`;
+                item.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="font-bold text-gray-800">${c.fuente}</p>
+                            <p class="text-xs ${esDebiendo ? 'text-purple-700 font-bold' : 'text-gray-400 line-through'}">$${c.montoUSDT.toFixed(2)} — <span class="text-gray-400 font-normal">${c.fecha}</span></p>
+                        </div>
+                        <div>
+                            ${esDebiendo ? 
+                                `<button onclick="toggleEstatusCredito(${c.id})" class="bg-purple-600 text-white text-xs px-3 py-1 rounded font-bold">Liquidar</button>` : 
+                                `<button onclick="toggleEstatusCredito(${c.id})" class="bg-gray-200 text-gray-700 text-xs px-2 py-1 rounded font-bold hover:bg-red-100 hover:text-red-700 transition">↩ Deshacer Pago</button>`
+                            }
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-3 text-[11px] border-t pt-1.5 mt-1">
+                        <button onclick="prepararEdicion('CREDITO', ${c.id})" class="text-blue-600 font-semibold">✏️ Editar</button>
+                        <button onclick="eliminarRegistro('CREDITO', ${c.id})" class="text-red-500 font-semibold">🗑️ Cancelar</button>
+                    </div>`;
+                lista.appendChild(item);
+            });
+        }
+
+        function actualizarDashboard() {
+            let calle = 0;
+            let caja = 0; 
+            let deudasUSD = 0; 
+            let brecha = 0;
+            
+            estado.ventas.forEach(v => { 
+                const totalAbonado = v.abonado || 0;
+                const pendiente = v.monto - totalAbonado;
+                calle += pendiente;
+                caja += totalAbonado;
+            });
+            
+            estado.creditos.forEach(c => { if(c.estatus==='DEBIENDO') { deudasUSD+=c.montoUSDT; brecha+=c.brechaCambiaria; } });
+            
+            document.getElementById('txt-calle').innerText = `$${calle.toFixed(2)}`;
+            document.getElementById('txt-caja').innerText = `$${caja.toFixed(2)}`;
+            document.getElementById('txt-deuda-total').innerText = `$${deudasUSD.toFixed(2)}`;
+            document.getElementById('txt-brecha').innerText = `-$${brecha.toFixed(2)}`;
+            document.getElementById('txt-recompra').innerText = `$${caja.toFixed(2)}`;
+        }
+
+        function descargarCierreGeneralCSV() { alert("Simulado para descarga."); }
+    </script>
+</body>
+</html>

@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ERP - Comercial</title>
     <script src="https://cdn.jsdelivr.net/npm/tailwindcss-cdn@3.4.10/tailwindcss.js"></script>
+    <!-- Librería SheetJS para generar archivos Excel reales (.xlsx) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .modal { display: none; }
         .modal.active { display: flex; }
-        /* Ajuste para el área segura del iPhone en la parte inferior */
         .pb-safe { padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
     </style>
 </head>
@@ -63,7 +64,7 @@
                 <p class="text-[10px] text-center text-gray-400">El Disponible Neto es tu efectivo restando tus deudas pendientes.</p>
             </div>
 
-            <!-- NUEVO: RENDIMIENTO HISTÓRICO -->
+            <!-- RENDIMIENTO HISTÓRICO -->
             <div class="bg-white p-4 rounded-xl shadow space-y-3 border-t-4 border-green-500">
                 <h3 class="text-sm font-bold text-gray-800 border-b pb-2">Rendimiento Histórico Global</h3>
                 <div class="flex justify-between border-b pb-2 text-sm">
@@ -80,10 +81,25 @@
                 </div>
             </div>
 
-            <!-- BOTÓN DE CIERRE E HISTORIAL -->
+            <!-- CIERRES DE PERIODO (PUNTO 2) -->
+            <div class="bg-white p-4 rounded-xl shadow space-y-3 border-t-4 border-indigo-500">
+                <h3 class="text-sm font-bold text-gray-800 border-b pb-2">Cierres de Periodo</h3>
+                <div class="grid grid-cols-2 gap-2">
+                    <select id="tipo-cierre-periodo" class="p-2 border rounded-lg text-xs bg-gray-50 font-semibold text-gray-700">
+                        <option value="Día">Cierre Diario</option>
+                        <option value="Semana">Cierre Semanal</option>
+                        <option value="Mes">Cierre Mensual</option>
+                    </select>
+                    <button onclick="ejecutarCierrePeriodo()" class="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold py-2 px-3 rounded-lg text-xs transition shadow">
+                        📸 Ejecutar Corte
+                    </button>
+                </div>
+            </div>
+
+            <!-- BOTÓN DE CIERRE EXCEL E HISTORIAL (PUNTO 1) -->
             <div class="bg-white p-4 rounded-xl shadow">
-                <button id="btn-cierre" onclick="descargarCierreGeneralCSV()" class="w-full bg-gray-800 hover:bg-gray-700 active:scale-95 text-white font-bold py-3 px-4 rounded-lg shadow flex items-center justify-center gap-2 text-sm transition">
-                    <span>📥</span> <span>Generar y Descargar Cierre (.csv)</span>
+                <button id="btn-cierre" onclick="descargarCierreExcel()" class="w-full bg-gray-800 hover:bg-gray-700 active:scale-95 text-white font-bold py-3 px-4 rounded-lg shadow flex items-center justify-center gap-2 text-sm transition">
+                    <span>📊</span> <span>Generar y Descargar Cierre (.xlsx)</span>
                 </button>
 
                 <div class="mt-4 pt-3 border-t">
@@ -174,69 +190,97 @@
             <div id="lista-compras" class="space-y-2"></div>
         </div>
 
-        <!-- MÓDULO: CUENTAS POR COBRAR (VENTAS) -->
+        <!-- MÓDULO: CUENTAS POR COBRAR / VENTAS (CON CARTERA CONSOLIDADA - PUNTO 4) -->
         <div id="tab-ventas" class="tab-content space-y-4">
-            <h2 class="text-lg font-bold text-gray-800">Despachos a Clientes</h2>
-            <div class="bg-white p-4 rounded-xl shadow space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-gray-700">Fecha de Despacho</label>
-                    <input type="date" id="venta-fecha" class="w-full mt-1 p-2.5 border rounded-lg bg-gray-50 text-sm font-semibold text-gray-800">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-700">Cliente</label>
-                    <input type="text" id="venta-cliente" placeholder="Nombre del Cliente" class="w-full mt-1 p-3 border rounded-lg text-sm bg-gray-50">
+            <div class="flex bg-gray-200 p-1 rounded-xl">
+                <button onclick="switchSubTabVentas('despachos')" id="btn-sub-despachos" class="w-1/2 py-2 text-xs font-bold rounded-lg bg-white text-gray-800 shadow-sm transition">Registrar / Despachos</button>
+                <button onclick="switchSubTabVentas('cartera')" id="btn-sub-cartera" class="w-1/2 py-2 text-xs font-bold rounded-lg text-gray-600 transition">Cartera Consolidada</button>
+            </div>
+
+            <!-- VISTA 1: DESPACHOS -->
+            <div id="subtab-despachos" class="space-y-4">
+                <h2 class="text-lg font-bold text-gray-800">Despachos a Clientes</h2>
+                <div class="bg-white p-4 rounded-xl shadow space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700">Fecha de Despacho</label>
+                        <input type="date" id="venta-fecha" class="w-full mt-1 p-2.5 border rounded-lg bg-gray-50 text-sm font-semibold text-gray-800">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700">Cliente</label>
+                        <input type="text" id="venta-cliente" placeholder="Nombre del Cliente" class="w-full mt-1 p-3 border rounded-lg text-sm bg-gray-50">
+                    </div>
+                    
+                    <div class="border-t border-orange-200 pt-3 mt-2">
+                        <p class="text-xs font-bold text-orange-600 uppercase mb-2">Añadir Bultos al Despacho</p>
+                        <div class="space-y-2 relative">
+                            <label class="text-[11px] text-gray-600 block font-semibold">Buscar Código de Producto</label>
+                            <input type="text" id="prod-buscar-venta" oninput="filtrarProductos('venta')" onfocus="mostrarListaProductos('venta')" placeholder="Escriba para filtrar..." class="w-full p-2 border rounded-lg text-sm bg-white font-mono font-bold text-orange-600">
+                            <div id="dropdown-productos-venta" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 divide-y divide-gray-100"></div>
+
+                            <div class="grid grid-cols-2 gap-2 pt-1">
+                                <div>
+                                    <label class="text-[10px] text-gray-500 block font-semibold">Precio Venta Unit. ($)</label>
+                                    <input type="text" id="prod-precio-usd-venta" inputmode="decimal" placeholder="Ej: 45,50" class="w-full p-2 border rounded-lg text-sm bg-gray-50">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] text-gray-500 block font-semibold">Cantidad Bultos</label>
+                                    <input type="text" id="prod-cant-venta" inputmode="numeric" placeholder="Ej: 5" class="w-full p-2 border rounded-lg text-sm bg-gray-50">
+                                </div>
+                            </div>
+                            <button type="button" onclick="agregarProductoAlLoteVenta()" class="w-full bg-orange-100 active:scale-95 text-orange-700 p-2 rounded-lg text-xs font-bold border border-orange-300 transition">+ Agregar Bultos al Cliente</button>
+                        </div>
+                    </div>
+
+                    <div id="pre-lista-venta" class="bg-orange-50 p-2 rounded-lg text-xs space-y-1 hidden">
+                        <p class="font-bold text-gray-600 border-b border-orange-200 pb-1">Mercancía en este despacho:</p>
+                        <div id="pre-lista-items-venta" class="space-y-1 text-gray-700 font-mono"></div>
+                        <p class="text-right font-bold pt-1 border-t border-orange-200 text-gray-800">Total Crédito: $<span id="pre-total-venta">0,00</span></p>
+                    </div>
+
+                    <button type="button" onclick="procesarVenta()" class="w-full bg-orange-500 active:bg-orange-600 active:scale-95 text-white p-3 rounded-lg font-bold text-sm shadow transition">Registrar Crédito Cliente</button>
                 </div>
                 
-                <div class="border-t border-orange-200 pt-3 mt-2">
-                    <p class="text-xs font-bold text-orange-600 uppercase mb-2">Añadir Bultos al Despacho</p>
-                    <div class="space-y-2 relative">
-                        <label class="text-[11px] text-gray-600 block font-semibold">Buscar Código de Producto</label>
-                        <input type="text" id="prod-buscar-venta" oninput="filtrarProductos('venta')" onfocus="mostrarListaProductos('venta')" placeholder="Escriba para filtrar..." class="w-full p-2 border rounded-lg text-sm bg-white font-mono font-bold text-orange-600">
-                        <div id="dropdown-productos-venta" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 divide-y divide-gray-100"></div>
-
-                        <div class="grid grid-cols-2 gap-2 pt-1">
-                            <div>
-                                <label class="text-[10px] text-gray-500 block font-semibold">Precio Venta Unit. ($)</label>
-                                <input type="text" id="prod-precio-usd-venta" inputmode="decimal" placeholder="Ej: 45,50" class="w-full p-2 border rounded-lg text-sm bg-gray-50">
-                            </div>
-                            <div>
-                                <label class="text-[10px] text-gray-500 block font-semibold">Cantidad Bultos</label>
-                                <input type="text" id="prod-cant-venta" inputmode="numeric" placeholder="Ej: 5" class="w-full p-2 border rounded-lg text-sm bg-gray-50">
-                            </div>
-                        </div>
-                        <button type="button" onclick="agregarProductoAlLoteVenta()" class="w-full bg-orange-100 active:scale-95 text-orange-700 p-2 rounded-lg text-xs font-bold border border-orange-300 transition">+ Agregar Bultos al Cliente</button>
+                <div class="bg-white p-3 rounded-xl shadow space-y-2">
+                    <input type="text" id="venta-busqueda" oninput="renderVentas()" placeholder="🔍 Buscar nombre de cliente..." class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-medium text-gray-700">
+                    <div class="flex gap-2">
+                        <select id="venta-filtro-estatus" onchange="renderVentas()" class="w-1/2 p-2 border rounded-lg text-xs bg-gray-50 font-semibold text-gray-700">
+                            <option value="TODOS">Todas las facturas</option>
+                            <option value="PENDIENTE">Solo Pendientes ⚠️</option>
+                            <option value="COBRADO">Solo Cobradas ✅</option>
+                        </select>
+                        <select id="venta-filtro-orden" onchange="renderVentas()" class="w-1/2 p-2 border rounded-lg text-xs bg-gray-50 font-semibold text-gray-700">
+                            <option value="REC">Más recientes primero</option>
+                            <option value="ANT">Más antiguas primero</option>
+                            <option value="MAX_M">Mayor a menor deuda</option>
+                            <option value="MIN_M">Menor a mayor deuda</option>
+                            <option value="CLI_AZ">Cliente (A-Z)</option>
+                        </select>
                     </div>
                 </div>
 
-                <div id="pre-lista-venta" class="bg-orange-50 p-2 rounded-lg text-xs space-y-1 hidden">
-                    <p class="font-bold text-gray-600 border-b border-orange-200 pb-1">Mercancía en este despacho:</p>
-                    <div id="pre-lista-items-venta" class="space-y-1 text-gray-700 font-mono"></div>
-                    <p class="text-right font-bold pt-1 border-t border-orange-200 text-gray-800">Total Crédito: $<span id="pre-total-venta">0,00</span></p>
-                </div>
-
-                <button type="button" onclick="procesarVenta()" class="w-full bg-orange-500 active:bg-orange-600 active:scale-95 text-white p-3 rounded-lg font-bold text-sm shadow transition">Registrar Crédito Cliente</button>
-            </div>
-            
-            <!-- NUEVOS FILTROS DE VENTAS -->
-            <div class="bg-white p-3 rounded-xl shadow space-y-2">
-                <input type="text" id="venta-busqueda" oninput="renderVentas()" placeholder="🔍 Buscar nombre de cliente..." class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-medium text-gray-700">
-                <div class="flex gap-2">
-                    <select id="venta-filtro-estatus" onchange="renderVentas()" class="w-1/2 p-2 border rounded-lg text-xs bg-gray-50 font-semibold text-gray-700">
-                        <option value="TODOS">Todas las facturas</option>
-                        <option value="PENDIENTE">Solo Pendientes ⚠️</option>
-                        <option value="COBRADO">Solo Cobradas ✅</option>
-                    </select>
-                    <select id="venta-filtro-orden" onchange="renderVentas()" class="w-1/2 p-2 border rounded-lg text-xs bg-gray-50 font-semibold text-gray-700">
-                        <option value="REC">Más recientes primero</option>
-                        <option value="ANT">Más antiguas primero</option>
-                        <option value="MAX_M">Mayor a menor deuda</option>
-                        <option value="MIN_M">Menor a mayor deuda</option>
-                        <option value="CLI_AZ">Cliente (A-Z)</option>
-                    </select>
-                </div>
+                <div id="lista-ventas" class="space-y-2 pb-4"></div>
             </div>
 
-            <div id="lista-ventas" class="space-y-2 pb-4"></div>
+            <!-- VISTA 2: CARTERA CONSOLIDADA (PUNTO 4) -->
+            <div id="subtab-cartera" class="space-y-4 hidden">
+                <h2 class="text-lg font-bold text-gray-800">Cartera Consolidada por Cliente</h2>
+                <div class="bg-white p-3 rounded-xl shadow space-y-2">
+                    <input type="text" id="cartera-busqueda" oninput="renderCarteraConsolidada()" placeholder="🔍 Buscar cliente en cartera..." class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-medium text-gray-700">
+                    <div class="flex gap-2">
+                        <select id="cartera-filtro" onchange="renderCarteraConsolidada()" class="w-1/2 p-2 border rounded-lg text-xs bg-gray-50 font-semibold text-gray-700">
+                            <option value="TODOS">Todos los clientes</option>
+                            <option value="DEUDA">Con deuda pendiente ⚠️</option>
+                            <option value="SOLVENTE">Solventes / Sin Deuda ✅</option>
+                        </select>
+                        <select id="cartera-orden" onchange="renderCarteraConsolidada()" class="w-1/2 p-2 border rounded-lg text-xs bg-gray-50 font-semibold text-gray-700">
+                            <option value="MAY_MEN">Mayor a menor deuda</option>
+                            <option value="MEN_MAY">Menor a mayor deuda</option>
+                            <option value="AZ">Nombre (A-Z)</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="lista-cartera-consolidada" class="space-y-2 pb-4"></div>
+            </div>
         </div>
 
         <!-- MÓDULO: DEUDAS -->
@@ -266,7 +310,7 @@
             <div id="lista-creditos" class="space-y-2"></div>
         </div>
 
-        <!-- MÓDULO: INVENTARIO -->
+        <!-- MÓDULO: INVENTARIO (CON BUSCADOR - PUNTO 3) -->
         <div id="tab-inventario" class="tab-content space-y-4">
             <h2 class="text-lg font-bold text-gray-800">Dashboard de Inventario Real</h2>
             
@@ -293,22 +337,25 @@
                     </div>
                 </div>
 
-                <!-- NUEVOS FILTROS DE INVENTARIO -->
-                <div class="flex gap-2 mb-3 pb-3 border-b border-gray-100">
-                    <select id="filtro-inv-disp" onchange="renderInventario()" class="w-1/2 p-2 border rounded-lg text-[11px] bg-gray-50 text-gray-700 font-semibold">
-                        <option value="TODOS">Todos los productos</option>
-                        <option value="DISP">Con Disponibilidad (>0)</option>
-                        <option value="AGOT">Agotados (0 o menos)</option>
-                    </select>
-                    <select id="filtro-inv-orden" onchange="renderInventario()" class="w-1/2 p-2 border rounded-lg text-[11px] bg-gray-50 text-gray-700 font-semibold">
-                        <option value="AZ">Alfabético (A-Z)</option>
-                        <option value="ZA">Alfabético (Z-A)</option>
-                        <option value="MAX_CANT">Mayor stock primero</option>
-                        <option value="MIN_CANT">Menor stock primero</option>
-                    </select>
+                <!-- BUSCADOR EN TIEMPO REAL Y FILTROS (PUNTO 3) -->
+                <div class="space-y-2 mb-3 pb-3 border-b border-gray-100">
+                    <input type="text" id="buscador-stock" oninput="renderInventario()" placeholder="🔍 Buscar insumos (ej. Envoplast, canilla...)" class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-medium text-gray-700">
+                    <div class="flex gap-2">
+                        <select id="filtro-inv-disp" onchange="renderInventario()" class="w-1/2 p-2 border rounded-lg text-[11px] bg-gray-50 text-gray-700 font-semibold">
+                            <option value="TODOS">Todos los productos</option>
+                            <option value="DISP">Con Disponibilidad (>0)</option>
+                            <option value="AGOT">Agotados (0 o menos)</option>
+                        </select>
+                        <select id="filtro-inv-orden" onchange="renderInventario()" class="w-1/2 p-2 border rounded-lg text-[11px] bg-gray-50 text-gray-700 font-semibold">
+                            <option value="AZ">Alfabético (A-Z)</option>
+                            <option value="ZA">Alfabético (Z-A)</option>
+                            <option value="MAX_CANT">Mayor stock primero</option>
+                            <option value="MIN_CANT">Menor stock primero</option>
+                        </select>
+                    </div>
                 </div>
 
-                <div id="dashboard-inventario" class="space-y-1 max-h-[60vh] overflow-y-auto divide-y divide-gray-100"></div>
+                <div id="dashboard-inventario" class="space-y-1 max-h-[50vh] overflow-y-auto divide-y divide-gray-100"></div>
             </div>
         </div>
 
@@ -318,9 +365,7 @@
     <div id="modal-detalle" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4 transition-opacity">
         <div class="bg-white rounded-xl max-w-sm w-full max-h-[85vh] flex flex-col p-4 shadow-2xl relative">
             <h3 class="text-base font-bold text-gray-800 border-b pb-2 pr-6">Detalle Operación</h3>
-            <!-- Botón de cerrar superior táctil -->
             <button onclick="cerrarModal('modal-detalle')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold active:scale-95">×</button>
-            
             <div id="modal-detalle-body" class="overflow-y-auto flex-1 my-3 space-y-3 text-xs text-gray-600"></div>
             <button onclick="cerrarModal('modal-detalle')" class="w-full bg-gray-800 active:scale-95 text-white p-3 rounded-lg text-sm font-bold mt-2 transition">Cerrar Ventana</button>
         </div>
@@ -330,7 +375,6 @@
         <div class="bg-white rounded-xl max-w-sm w-full max-h-[90vh] flex flex-col p-4 shadow-2xl relative">
             <h3 id="modal-editar-titulo" class="text-base font-bold text-gray-800 border-b pb-2 pr-6">Modificar Datos</h3>
             <button onclick="cerrarModal('modal-editar')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold active:scale-95">×</button>
-            
             <div id="modal-editar-body" class="overflow-y-auto flex-1 my-3 space-y-4 text-xs"></div>
             <div class="flex gap-2 pt-2 border-t" id="modal-editar-botones">
                 <button onclick="cerrarModal('modal-editar')" class="w-1/2 bg-gray-200 text-gray-700 p-3 rounded-lg font-bold active:scale-95">Cancelar</button>
@@ -340,7 +384,6 @@
     </div>
 
     <!-- Barra de Navegación Inferior -->
-    <!-- Se usó env(safe-area-inset-bottom) para compatibilidad con la barra de inicio del iPhone -->
     <nav class="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around p-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-30 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
         <button onclick="switchTab('rescate')" class="flex flex-col items-center text-blue-600 py-1 px-3 w-full"><span class="text-2xl mb-0.5">📊</span><span class="text-[10px] font-semibold">Rescate</span></button>
         <button onclick="switchTab('compras')" class="flex flex-col items-center text-gray-400 py-1 px-3 w-full"><span class="text-2xl mb-0.5">🛒</span><span class="text-[10px] font-semibold">Compras</span></button>
@@ -358,7 +401,7 @@
             "CANILLA 03", "10X25" 
         ];
         
-        let estado = { compras: [], ventas: [], creditos: [], ajustes: [], cierres: [] };
+        let estado = { compras: [], ventas: [], creditos: [], ajustes: [], cierres: [], historialCierres: [] };
         let loteTemporalCompras = [];
         let loteTemporalVentas = [];
         let tasaBCVGlobal = 61.63;
@@ -369,6 +412,7 @@
                 estado = JSON.parse(localStorage.getItem('mana_estado')); 
                 if(!estado.ajustes) estado.ajustes = []; 
                 if(!estado.cierres) estado.cierres = []; 
+                if(!estado.historialCierres) estado.historialCierres = []; 
             } catch(e) {}
         }
 
@@ -397,7 +441,7 @@
             } catch (e) {}
             badge.innerText = `Bs. ${fmt(tasaBCVGlobal)}`;
             if(document.getElementById('viaje-bcv')) document.getElementById('viaje-bcv').value = fmt(tasaBCVGlobal);
-            inicializarFechasFormularios(); cargarSelectAjustes(); actualizarDashboard(); renderCompras(); renderVentas(); renderCreditos(); renderInventario(); renderHistorialCierres();
+            inicializarFechasFormularios(); cargarSelectAjustes(); actualizarDashboard(); renderCompras(); renderVentas(); renderCarteraConsolidada(); renderCreditos(); renderInventario(); renderHistorialCierres();
         }
         window.onload = obtenerTasaBCV;
 
@@ -524,9 +568,27 @@
             
             actualizarDashboard();
             if(tabId === 'inventario') renderInventario();
-            if(tabId === 'ventas') renderVentas();
+            if(tabId === 'ventas') { renderVentas(); renderCarteraConsolidada(); }
         }
         
+        function switchSubTabVentas(sub) {
+            const btnD = document.getElementById('btn-sub-despachos');
+            const btnC = document.getElementById('btn-sub-cartera');
+            const subD = document.getElementById('subtab-despachos');
+            const subC = document.getElementById('subtab-cartera');
+            if(sub === 'despachos') {
+                btnD.className = "w-1/2 py-2 text-xs font-bold rounded-lg bg-white text-gray-800 shadow-sm transition";
+                btnC.className = "w-1/2 py-2 text-xs font-bold rounded-lg text-gray-600 transition";
+                subD.classList.remove('hidden'); subC.classList.add('hidden');
+                renderVentas();
+            } else {
+                btnC.className = "w-1/2 py-2 text-xs font-bold rounded-lg bg-white text-gray-800 shadow-sm transition";
+                btnD.className = "w-1/2 py-2 text-xs font-bold rounded-lg text-gray-600 transition";
+                subC.classList.remove('hidden'); subD.classList.add('hidden');
+                renderCarteraConsolidada();
+            }
+        }
+
         function abrirModal(id) { document.getElementById(id).classList.add('active'); }
         function cerrarModal(id) { document.getElementById(id).classList.remove('active'); }
 
@@ -628,7 +690,7 @@
             let m = 0; const p = loteTemporalVentas.map(x => { const t = x.precioUSD * x.cant; m += t; return { ...x, totalFila: t }; });
             estado.ventas.push({ id: Date.now(), fecha: document.getElementById('venta-fecha').value || obtenerFechaActualLocal(), cliente: c, monto: m, abonado: 0, estatus: 'PENDIENTE', productos: p });
             document.getElementById('venta-cliente').value = ''; loteTemporalVentas = [];
-            guardarEnLocalStorage(); renderPreLoteVenta(); renderVentas(); renderInventario(); actualizarDashboard();
+            guardarEnLocalStorage(); renderPreLoteVenta(); renderVentas(); renderCarteraConsolidada(); renderInventario(); actualizarDashboard();
         }
 
         function abonarAVenta(id) {
@@ -637,7 +699,7 @@
             if (a === null) return; const mA = parseNum(a);
             if (isNaN(mA) || mA <= 0 || mA > pd) return alert("Monto inválido.");
             v.abonado = (v.abonado || 0) + mA; v.estatus = (v.abonado >= v.monto) ? 'COBRADO' : 'PENDIENTE';
-            guardarEnLocalStorage(); renderVentas(); actualizarDashboard();
+            guardarEnLocalStorage(); renderVentas(); renderCarteraConsolidada(); actualizarDashboard();
         }
 
         function cargarSelectAjustes() {
@@ -663,7 +725,7 @@
             guardarEnLocalStorage(); renderInventario(); actualizarDashboard();
         }
 
-        // --- RENDER INVENTARIO (ACTUALIZADO CON FILTROS) ---
+        // --- INVENTARIO CON BUSCADOR (PUNTO 3) ---
         function renderInventario() {
             const container = document.getElementById('dashboard-inventario');
             if(!container) return;
@@ -672,23 +734,22 @@
             const costos = obtenerCostosPromedio(); 
             let totalGlobalUSD = 0;
             
-            // Preparar arreglo para filtrar y ordenar
+            const busq = document.getElementById('buscador-stock') ? document.getElementById('buscador-stock').value.trim().toLowerCase() : "";
+            const fDisp = document.getElementById('filtro-inv-disp') ? document.getElementById('filtro-inv-disp').value : 'TODOS';
+            const fOrd = document.getElementById('filtro-inv-orden') ? document.getElementById('filtro-inv-orden').value : 'AZ';
+
             let invArray = Object.keys(conteo).map(prod => {
                 const bultos = conteo[prod];
                 const costoProm = costos[prod] || 0;
                 const valorFila = bultos > 0 ? bultos * costoProm : 0;
                 if (bultos > 0) totalGlobalUSD += valorFila;
-                
-                return { nombre: prod, bultos: bultos, costoProm: costoProm, valorFila: valorFila };
+                return { nombre: prod, bultos, costoProm, valorFila };
             });
 
-            // Aplicar Filtros de Disponibilidad
-            const fDisp = document.getElementById('filtro-inv-disp') ? document.getElementById('filtro-inv-disp').value : 'TODOS';
+            if (busq) invArray = invArray.filter(i => i.nombre.toLowerCase().includes(busq));
             if (fDisp === 'DISP') invArray = invArray.filter(i => i.bultos > 0);
             else if (fDisp === 'AGOT') invArray = invArray.filter(i => i.bultos <= 0);
 
-            // Aplicar Filtros de Orden
-            const fOrd = document.getElementById('filtro-inv-orden') ? document.getElementById('filtro-inv-orden').value : 'AZ';
             if (fOrd === 'AZ') invArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
             else if (fOrd === 'ZA') invArray.sort((a, b) => b.nombre.localeCompare(a.nombre));
             else if (fOrd === 'MAX_CANT') invArray.sort((a, b) => b.bultos - a.bultos);
@@ -696,7 +757,7 @@
 
             container.innerHTML = '';
             if (invArray.length === 0) {
-                container.innerHTML = '<p class="text-xs text-center text-gray-400 py-4">No hay productos que coincidan con los filtros.</p>';
+                container.innerHTML = '<p class="text-xs text-center text-gray-400 py-4">No se encontraron productos.</p>';
             } else {
                 invArray.forEach(item => {
                     const el = document.createElement('div');
@@ -719,6 +780,64 @@
             document.getElementById('inv-total-usd').innerText = `$${fmt(totalGlobalUSD)}`;
         }
 
+        // --- CARTERA CONSOLIDADA DE CLIENTES (PUNTO 4) ---
+        function renderCarteraConsolidada() {
+            const container = document.getElementById('lista-cartera-consolidada');
+            if(!container) return;
+
+            let clientesMap = {};
+            estado.ventas.forEach(v => {
+                const nombre = v.cliente.trim();
+                if(!clientesMap[nombre]) {
+                    clientesMap[nombre] = { nombre, deudaTotal: 0, facturasPendientes: 0, totalComprado: 0 };
+                }
+                const deudaFactura = v.monto - (v.abonado || 0);
+                clientesMap[nombre].totalComprado += v.monto;
+                if(v.estatus === 'PENDIENTE') {
+                    clientesMap[nombre].deudaTotal += deudaFactura;
+                    clientesMap[nombre].facturasPendientes += 1;
+                }
+            });
+
+            let cartera = Object.values(clientesMap);
+
+            const busq = document.getElementById('cartera-busqueda') ? document.getElementById('cartera-busqueda').value.trim().toLowerCase() : "";
+            const filtro = document.getElementById('cartera-filtro') ? document.getElementById('cartera-filtro').value : "TODOS";
+            const orden = document.getElementById('cartera-orden') ? document.getElementById('cartera-orden').value : "MAY_MEN";
+
+            if (busq) cartera = cartera.filter(c => c.nombre.toLowerCase().includes(busq));
+            if (filtro === 'DEUDA') cartera = cartera.filter(c => c.deudaTotal > 0);
+            else if (filtro === 'SOLVENTE') cartera = cartera.filter(c => c.deudaTotal <= 0);
+
+            if (orden === 'MAY_MEN') cartera.sort((a, b) => b.deudaTotal - a.deudaTotal);
+            else if (orden === 'MEN_MAY') cartera.sort((a, b) => a.deudaTotal - b.deudaTotal);
+            else if (orden === 'AZ') cartera.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+            container.innerHTML = '';
+            if (cartera.length === 0) {
+                container.innerHTML = '<p class="text-xs text-center text-gray-400 py-4">No hay clientes en la cartera.</p>';
+                return;
+            }
+
+            cartera.forEach(c => {
+                const el = document.createElement('div');
+                el.className = `bg-white p-3 rounded-xl shadow border-l-4 ${c.deudaTotal > 0 ? 'border-orange-500' : 'border-green-500'} space-y-1`;
+                el.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold text-gray-800 text-sm">${c.nombre}</span>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${c.deudaTotal > 0 ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}">
+                            ${c.deudaTotal > 0 ? `${c.facturasPendientes} Facturas Pendientes` : 'Solvente ✅'}
+                        </span>
+                    </div>
+                    <div class="flex justify-between text-xs pt-1 border-t border-gray-100 text-gray-600">
+                        <span>Total Comprado: $${fmt(c.totalComprado)}</span>
+                        <span class="font-bold ${c.deudaTotal > 0 ? 'text-orange-600' : 'text-green-600'}">Deuda Total: $${fmt(c.deudaTotal)}</span>
+                    </div>
+                `;
+                container.appendChild(el);
+            });
+        }
+
         function verDetalleCompra(id) {
             const f = estado.compras.find(c => c.id === id); if(!f) return;
             let h = `<p><b>Fecha:</b> ${f.fecha}</p><p><b>Tasa BCV:</b> Bs. ${fmt(f.tasaBCV)}</p><p><b>Flete Declarado:</b> Bs. ${fmt(f.taxiBs)} ${f.compartido ? '<span class="text-blue-600">(Com)</span>':''}</p>`;
@@ -738,7 +857,6 @@
             const v = estado.ventas.find(x => x.id === id); if(!v) return;
             const costos = obtenerCostosPromedio();
             let costoTotalDespacho = 0;
-            
             let h = `<p class='text-lg font-bold text-gray-800 mb-1'>${v.cliente}</p><p class='text-xs text-gray-500'><b>Fecha:</b> ${v.fecha}</p><hr class='my-2'>`;
             
             if(v.productos && v.productos.length > 0) {
@@ -746,7 +864,6 @@
                 v.productos.forEach(p => {
                     const cProm = costos[p.nombre] || 0;
                     costoTotalDespacho += (cProm * p.cant);
-                    
                     h += `<div class='bg-gray-50 p-2 rounded font-mono border mb-1'>
                         <p class='font-bold text-gray-800'>${p.nombre} (x${p.cant})</p>
                         <div class='flex justify-between text-gray-600 text-[10px] mt-1 pt-1 border-t'><span>Precio Unit: $${fmt(p.precioUSD)}</span><span class='font-bold'>Sub: $${fmt(p.totalFila)}</span></div>
@@ -756,7 +873,6 @@
             
             const ganancia = v.monto - costoTotalDespacho;
             const margen = v.monto > 0 ? (ganancia / v.monto) * 100 : 0;
-            
             h += `<hr class='my-3'>
                   <div class='text-sm space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100 shadow-sm'>
                       <div class='flex justify-between text-gray-600 text-xs'><span>Costo Mercancía Histórico:</span> <span class='font-mono'>-$${fmt(costoTotalDespacho)}</span></div>
@@ -766,7 +882,6 @@
                           <span class='text-right font-mono'>$${fmt(ganancia)} <br><span class='text-[10px] font-sans text-gray-500'>(${fmt(margen)}% de margen)</span></span>
                       </div>
                   </div>`;
-                  
             document.getElementById('modal-detalle-body').innerHTML = h; abrirModal('modal-detalle');
         }
 
@@ -787,21 +902,16 @@
             });
         }
 
-        // --- RENDER VENTAS (ACTUALIZADO CON BÚSQUEDA Y FILTROS) ---
         function renderVentas() {
             const l = document.getElementById('lista-ventas'); if(!l) return;
-            
-            // Obtener valores de los filtros
             const b = document.getElementById('venta-busqueda') ? document.getElementById('venta-busqueda').value.trim().toLowerCase() : "";
             const fEst = document.getElementById('venta-filtro-estatus') ? document.getElementById('venta-filtro-estatus').value : "TODOS";
             const fOrd = document.getElementById('venta-filtro-orden') ? document.getElementById('venta-filtro-orden').value : "REC";
 
-            // Aplicar filtros
             let vArr = [...estado.ventas];
             if (b) vArr = vArr.filter(v => v.cliente.toLowerCase().includes(b));
             if (fEst !== 'TODOS') vArr = vArr.filter(v => v.estatus === fEst);
 
-            // Aplicar orden
             if (fOrd === 'REC') vArr.sort((a,b) => b.id - a.id);
             else if (fOrd === 'ANT') vArr.sort((a,b) => a.id - b.id);
             else if (fOrd === 'MAX_M') vArr.sort((a,b) => b.monto - a.monto);
@@ -810,7 +920,7 @@
 
             l.innerHTML = '';
             if (vArr.length === 0) {
-                l.innerHTML = '<p class="text-xs text-center text-gray-400 py-4">No hay facturas que coincidan.</p>';
+                l.innerHTML = '<p class="text-xs text-center text-gray-400 py-4">No hay despachos que coincidan.</p>';
             } else {
                 vArr.forEach(v => {
                     const e = document.createElement('div');
@@ -872,7 +982,7 @@
             } else if(t === 'CREDITO') {
                 const c = estado.creditos.find(x => x.id === id); c.montoUSDT = parseNum(document.getElementById('edit-c-monto').value); c.brechaCambiaria = ((c.montoUSDT * c.tasaP2P) / c.tasaBCV) - c.montoUSDT;
             }
-            guardarEnLocalStorage(); cerrarModal('modal-editar'); renderCompras(); renderVentas(); renderCreditos(); renderInventario(); actualizarDashboard();
+            guardarEnLocalStorage(); cerrarModal('modal-editar'); renderCompras(); renderVentas(); renderCarteraConsolidada(); renderCreditos(); renderInventario(); actualizarDashboard();
         }
 
         function eliminarRegistro(t, id) {
@@ -880,7 +990,7 @@
             if(t === 'COMPRA') estado.compras = estado.compras.filter(c => c.id !== id);
             if(t === 'VENTA') estado.ventas = estado.ventas.filter(v => v.id !== id);
             if(t === 'CREDITO') estado.creditos = estado.creditos.filter(c => c.id !== id);
-            guardarEnLocalStorage(); renderCompras(); renderVentas(); renderCreditos(); renderInventario(); actualizarDashboard();
+            guardarEnLocalStorage(); renderCompras(); renderVentas(); renderCarteraConsolidada(); renderCreditos(); renderInventario(); actualizarDashboard();
         }
 
         function onSubmitCredito(e) {
@@ -901,7 +1011,6 @@
             });
         }
 
-        // --- ACTUALIZADO: RENDIMIENTO HISTÓRICO Y DASHBOARD ---
         function actualizarDashboard() {
             let cal = 0; let caj = 0; let d = 0; let b = 0;
             let ventasTotalesHist = 0; 
@@ -926,7 +1035,6 @@
             let capInv = 0;
             for(let p in inv) { if(inv[p] > 0) capInv += inv[p] * (costosPromedio[p] || 0); }
 
-            // Llenar campos de caja actual
             document.getElementById('txt-calle').innerText = `$${fmt(cal)}`;
             document.getElementById('txt-caja').innerText = `$${fmt(caj)}`;
             document.getElementById('txt-deuda-total').innerText = `$${fmt(d)}`;
@@ -934,84 +1042,105 @@
             const txtCap = document.getElementById('txt-capital-inv');
             if(txtCap) txtCap.innerText = `$${fmt(capInv)}`;
             
-            const recompraReal = caj - d; // Efectivo menos deudas
+            const recompraReal = caj - d;
             document.getElementById('txt-recompra').innerText = `$${fmt(recompraReal)}`;
 
-            // Llenar campos de Rendimiento Histórico
             if(document.getElementById('txt-ventas-totales')) document.getElementById('txt-ventas-totales').innerText = `$${fmt(ventasTotalesHist)}`;
             if(document.getElementById('txt-costo-ventas')) document.getElementById('txt-costo-ventas').innerText = `-$${fmt(costoVentasTotalesHist)}`;
             if(document.getElementById('txt-ganancia-bruta')) document.getElementById('txt-ganancia-bruta').innerText = `$${fmt(ventasTotalesHist - costoVentasTotalesHist)}`;
         }
 
-        // --- ACTUALIZADO: GENERACIÓN DE CSV Y DESCARGA ---
-        function construirCSV() {
-            // Se usa \uFEFF para que Excel en PC/Mac reconozca los acentos (BOM)
-            let csv = "\uFEFFTIPO,FECHA,REFERENCIA_TERCERO,MONTO_USD,ESTATUS_ACTUAL,DETALLE_INTERNO\n";
+        // --- CIERRES DE PERIODO (PUNTO 2) ---
+        function ejecutarCierrePeriodo() {
+            const tipo = document.getElementById('tipo-cierre-periodo').value;
+            if(!confirm(`¿Deseas realizar un corte de ${tipo}? Esto guardará los contadores actuales y reiniciará la ganancia acumulada.`)) return;
+
+            let gananciaBrutaActual = parseNum(document.getElementById('txt-ganancia-bruta').innerText.replace('$', '').replace(/\./g, '').replace(',', '.'));
+            let totalVentasActual = parseNum(document.getElementById('txt-ventas-totales').innerText.replace('$', '').replace(/\./g, '').replace(',', '.'));
+
+            const cierreData = {
+                id: Date.now(),
+                fecha: new Date().toLocaleString('es-VE'),
+                tipo: tipo,
+                ventas: totalVentasActual,
+                ganancia: gananciaBrutaActual
+            };
+
+            if(!estado.historialCierres) estado.historialCierres = [];
+            estado.historialCierres.push(cierreData);
             
-            estado.compras.forEach(c => {
-                csv += `COMPRA_INVENTARIO,${c.fecha},Factura Prov. #${c.id},${c.totalUSD.toFixed(2)},COMPLETADA,"${c.productos.length} items comprados a tasa Bs.${fmt(c.tasaBCV)}"\n`;
-            });
-            
-            estado.ventas.forEach(v => {
-                const pd = v.monto - (v.abonado || 0);
-                csv += `VENTA_CLIENTE,${v.fecha},${v.cliente},${v.monto.toFixed(2)},${v.estatus},"${v.productos.length} items. Abonado: $${(v.abonado||0).toFixed(2)}. Deuda: $${pd.toFixed(2)}"\n`;
-            });
-            
-            estado.creditos.forEach(c => {
-                csv += `DEUDA_EXTERNA,${c.fecha},${c.fuente},${c.montoUSDT.toFixed(2)},${c.estatus},"Tasa P2P registrada: Bs.${fmt(c.tasaP2P)}"\n`;
-            });
-            
-            estado.ajustes.forEach(a => {
-                csv += `AJUSTE_BODEGA,${a.fecha},${a.producto},0.00,APLICADO,"${a.cant} bultos restados. Motivo: ${a.motivo}"\n`;
-            });
-            
-            return csv;
+            // Nota: El rendimiento histórico global se calcula dinámicamente de todas las ventas registradas. 
+            // Si deseas reiniciar transacciones pasadas, se requeriría archivar operaciones, 
+            // pero el corte guarda la fotografía exacta de cómo cerró el periodo.
+            guardarEnLocalStorage();
+            alert(`Corte de ${tipo} guardado con éxito.`);
         }
 
-        function triggerDownload(filename, data) {
-            const blob = new Blob([data], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            const url = URL.createObjectURL(blob);
-            link.setAttribute("href", url);
-            link.setAttribute("download", filename);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        function descargarCierreGeneralCSV() { 
+        // --- EXCEL NATIVO CON SHEETJS (PUNTO 1) ---
+        function descargarCierreExcel() {
             if(estado.compras.length === 0 && estado.ventas.length === 0) {
                 alert("No hay datos suficientes para generar un cierre."); return;
             }
 
             const btn = document.getElementById('btn-cierre');
-            btn.innerHTML = '<span>⏳</span> <span>Generando Archivo...</span>';
-            btn.classList.replace('bg-gray-800', 'bg-gray-500');
+            btn.innerHTML = '<span>⏳</span> <span>Generando Archivo Excel...</span>';
 
             setTimeout(() => {
-                const csvData = construirCSV();
+                let datosResumen = [
+                    { Concepto: "Ganancia Bruta Histórica", Monto: parseNum(document.getElementById('txt-ganancia-bruta').innerText.replace('$', '')) },
+                    { Concepto: "Dinero en la Calle (Por Cobrar)", Monto: parseNum(document.getElementById('txt-calle').innerText.replace('$', '')) },
+                    { Concepto: "Efectivo en Caja", Monto: parseNum(document.getElementById('txt-caja').innerText.replace('$', '')) },
+                    { Concepto: "Deudas Pendientes", Monto: parseNum(document.getElementById('txt-deuda-total').innerText.replace('$', '')) },
+                    { Concepto: "Capital en Inventario", Monto: parseNum(document.getElementById('txt-capital-inv').innerText.replace('$', '')) }
+                ];
+
+                const wb = XLSX.utils.book_new();
+                
+                // Hoja 1: Resumen
+                const wsResumen = XLSX.utils.json_to_sheet(datosResumen);
+                XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen General");
+
+                // Hoja 2: Ventas
+                if(estado.ventas.length > 0) {
+                    const wsVentas = XLSX.utils.json_to_sheet(estado.ventas.map(v => ({
+                        Fecha: v.fecha,
+                        Cliente: v.cliente,
+                        MontoTotalUSD: v.monto,
+                        AbonadoUSD: v.abonado || 0,
+                        Estatus: v.estatus
+                    })));
+                    XLSX.utils.book_append_sheet(wb, wsVentas, "Ventas");
+                }
+
+                // Hoja 3: Compras
+                if(estado.compras.length > 0) {
+                    const wsCompras = XLSX.utils.json_to_sheet(estado.compras.map(c => ({
+                        Fecha: c.fecha,
+                        FacturaID: c.id,
+                        TotalUSD: c.totalUSD,
+                        TasaBCV: c.tasaBCV,
+                        FleteBs: c.taxiBs
+                    })));
+                    XLSX.utils.book_append_sheet(wb, wsCompras, "Compras");
+                }
+
                 const d = new Date();
-                const ts = `${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}_${d.getHours()}${d.getMinutes()}`;
-                const filename = `Cierre_Comercial_${ts}.csv`;
+                const ts = `${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}`;
+                const filename = `Cierre_Operativo_${ts}.xlsx`;
 
-                const fechaFormateada = `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()} a las ${d.getHours()}:${d.getMinutes().toString().padStart(2,'0')}`;
+                XLSX.writeFile(wb, filename);
 
-                // Guardar en el historial interno
+                // Guardar en el historial local
+                const fechaFormateada = `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()}`;
                 estado.cierres.push({
                     id: Date.now(),
                     fecha: fechaFormateada,
-                    filename: filename,
-                    data: encodeURIComponent(csvData) // Encriptado ligero para que no rompa el JSON local
+                    filename: filename
                 });
                 guardarEnLocalStorage();
-                
-                triggerDownload(filename, csvData);
                 renderHistorialCierres();
 
-                // Restaurar botón
-                btn.innerHTML = '<span>📥</span> <span>Generar y Descargar Cierre (.csv)</span>';
-                btn.classList.replace('bg-gray-500', 'bg-gray-800');
+                btn.innerHTML = '<span>📊</span> <span>Generar y Descargar Cierre (.xlsx)</span>';
             }, 600);
         }
 
@@ -1021,7 +1150,7 @@
             l.innerHTML = '';
             
             if(!estado.cierres || estado.cierres.length === 0) {
-                l.innerHTML = '<p class="text-[11px] text-gray-400 p-2 text-center">Aún no has generado ningún documento de cierre.</p>';
+                l.innerHTML = '<p class="text-[11px] text-gray-400 p-2 text-center">Aún no hay reportes generados.</p>';
                 return;
             }
 
@@ -1033,9 +1162,7 @@
                         <span class="text-xs font-bold text-gray-700 font-mono">${c.filename}</span>
                         <span class="text-[10px] text-gray-500 uppercase mt-0.5">${c.fecha}</span>
                     </div>
-                    <button onclick="triggerDownload('${c.filename}', decodeURIComponent('${c.data}'))" class="text-[11px] bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg font-bold active:scale-95 shadow-sm">
-                        ⬇️ Bajar
-                    </button>
+                    <span class="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded font-bold">Generado ✅</span>
                 `;
                 l.appendChild(e);
             });

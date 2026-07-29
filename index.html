@@ -1018,14 +1018,16 @@
             let costoVentasTotalesHist = 0;
             let costosPromedio = obtenerCostosPromedio();
             
-            // Solo calcula el rendimiento desde el último corte de periodo guardado
-            let ventasFiltradas = estado.ventas.filter(v => v.id > (estado.cortePeriodoTimestamp || 0));
-
-            ventasFiltradas.forEach(v => { 
+            // 1) Calcular el Resumen de Caja Real (Global) - ESTO NO SE REINICIA
+            estado.ventas.forEach(v => { 
                 cal += (v.monto - (v.abonado || 0)); 
                 caj += (v.abonado || 0); 
-                ventasTotalesHist += v.monto;
+            });
 
+            // 2) Calcular SOLO el rendimiento desde el último corte guardado
+            let ventasFiltradas = estado.ventas.filter(v => v.id > (estado.cortePeriodoTimestamp || 0));
+            ventasFiltradas.forEach(v => {
+                ventasTotalesHist += v.monto;
                 if(v.productos) {
                     v.productos.forEach(p => {
                         costoVentasTotalesHist += (costosPromedio[p.nombre] || 0) * p.cant;
@@ -1059,28 +1061,69 @@
             const tipo = document.getElementById('tipo-cierre-periodo').value;
             if(!confirm(`¿Deseas realizar un corte de ${tipo}? Esto guardará los contadores actuales y reiniciará el rendimiento acumulado en pantalla.`)) return;
 
-            let gananciaBrutaActual = parseNum(document.getElementById('txt-ganancia-bruta').innerText.replace('$', '').replace(/\./g, '').replace(',', '.'));
-            let totalVentasActual = parseNum(document.getElementById('txt-ventas-totales').innerText.replace('$', '').replace(/\./g, '').replace(',', '.'));
+            let costosPromedio = obtenerCostosPromedio();
+            let ventasTotalesActual = 0;
+            let costoVentasTotalesActual = 0;
+
+            let ventasFiltradas = estado.ventas.filter(v => v.id > (estado.cortePeriodoTimestamp || 0));
+            ventasFiltradas.forEach(v => {
+                ventasTotalesActual += v.monto;
+                if(v.productos) {
+                    v.productos.forEach(p => {
+                        costoVentasTotalesActual += (costosPromedio[p.nombre] || 0) * p.cant;
+                    });
+                }
+            });
+
+            let gananciaBrutaActual = ventasTotalesActual - costoVentasTotalesActual;
 
             const corteTimestamp = Date.now();
             const cierreData = {
                 id: corteTimestamp,
                 fecha: new Date().toLocaleString('es-VE'),
                 tipo: tipo,
-                ventas: totalVentasActual,
+                ventas: ventasTotalesActual,
+                costos: costoVentasTotalesActual,
                 ganancia: gananciaBrutaActual
             };
 
             if(!estado.historialCierres) estado.historialCierres = [];
             estado.historialCierres.push(cierreData);
             
-            // Actualiza la marca de tiempo para reiniciar los contadores visibles desde este momento
             estado.cortePeriodoTimestamp = corteTimestamp;
             
             guardarEnLocalStorage();
             actualizarDashboard();
             renderHistorialCortesPeriodo();
             alert(`Corte de ${tipo} ejecutado y contadores reiniciados con éxito.`);
+        }
+
+        function verDetalleCortePeriodo(id) {
+            const c = estado.historialCierres.find(x => x.id === id); 
+            if(!c) return;
+            
+            let h = `
+                <div class="text-center mb-4">
+                    <p class="text-lg font-bold text-indigo-700">Corte ${c.tipo}</p>
+                    <p class="text-xs text-gray-500">${c.fecha}</p>
+                </div>
+                <div class="space-y-3 text-sm bg-indigo-50 p-4 rounded-xl border border-indigo-100 shadow-sm">
+                    <div class="flex justify-between border-b border-indigo-200 pb-2 text-gray-700">
+                        <span class="font-semibold">Ventas del Periodo:</span> 
+                        <span class="font-mono font-bold">$${fmt(c.ventas)}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-indigo-200 pb-2 text-gray-700">
+                        <span class="font-semibold">Costos del Periodo:</span> 
+                        <span class="font-mono font-bold text-red-600">-$${fmt(c.costos || 0)}</span>
+                    </div>
+                    <div class="flex justify-between pt-1 text-indigo-900 text-base">
+                        <span class="font-bold">Ganancia Bruta:</span> 
+                        <span class="font-mono font-bold text-green-700">+$${fmt(c.ganancia)}</span>
+                    </div>
+                </div>`;
+            
+            document.getElementById('modal-detalle-body').innerHTML = h;
+            abrirModal('modal-detalle');
         }
 
         function renderHistorialCortesPeriodo() {
@@ -1095,13 +1138,14 @@
             container.innerHTML = '';
             [...estado.historialCierres].reverse().forEach(c => {
                 const el = document.createElement('div');
-                el.className = "bg-indigo-50 p-2 rounded-lg border border-indigo-100 text-[11px] flex justify-between items-center";
+                el.className = "bg-indigo-50 hover:bg-indigo-100 active:scale-95 p-3 rounded-lg border border-indigo-200 text-[11px] flex justify-between items-center cursor-pointer transition shadow-sm";
+                el.setAttribute('onclick', `verDetalleCortePeriodo(${c.id})`);
                 el.innerHTML = `
                     <div>
-                        <span class="font-bold text-indigo-900">Corte ${c.tipo}</span>
-                        <p class="text-[10px] text-gray-500">${c.fecha}</p>
+                        <span class="font-bold text-indigo-900 text-xs">Corte ${c.tipo}</span>
+                        <p class="text-[10px] text-gray-500 mt-0.5">${c.fecha}</p>
                     </div>
-                    <div class="text-right font-mono">
+                    <div class="text-right font-mono bg-white px-2 py-1 rounded shadow-sm border border-indigo-50">
                         <span class="font-bold text-green-700">+$${fmt(c.ganancia)}</span>
                     </div>
                 `;
@@ -1109,7 +1153,7 @@
             });
         }
 
-        // --- EXCEL NATIVO CON SHEETJS ---
+        // --- EXCEL NATIVO CON SHEETJS (CON HISTORIAL DESCARGABLE) ---
         function descargarCierreExcel() {
             if(estado.compras.length === 0 && estado.ventas.length === 0) {
                 alert("No hay datos suficientes para generar un cierre."); return;
@@ -1163,12 +1207,55 @@
                 estado.cierres.push({ 
                     id: Date.now(), 
                     fecha: new Date().toLocaleString('es-VE'), 
-                    nombre: nombreArchivo 
+                    nombre: nombreArchivo,
+                    compras: JSON.parse(JSON.stringify(estado.compras)),
+                    ventas: JSON.parse(JSON.stringify(estado.ventas))
                 });
                 guardarEnLocalStorage();
                 renderHistorialCierres();
                 
             }, 800);
+        }
+
+        function descargarRespaldoExistente(id) {
+            const cierre = estado.cierres.find(c => c.id === id);
+            if(!cierre) return;
+
+            const ventasRef = cierre.ventas || estado.ventas;
+            const comprasRef = cierre.compras || estado.compras;
+
+            let datosResumen = [
+                { Concepto: "Respaldo Generado", Fecha: cierre.fecha }
+            ];
+
+            const wb = XLSX.utils.book_new();
+            const wsResumen = XLSX.utils.json_to_sheet(datosResumen);
+            XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen General");
+
+            if(ventasRef.length > 0) {
+                const wsVentas = XLSX.utils.json_to_sheet(ventasRef.map(v => ({
+                    Fecha: v.fecha,
+                    Cliente: v.cliente,
+                    MontoTotalUSD: v.monto,
+                    AbonadoUSD: v.abonado || 0,
+                    Estatus: v.estatus
+                })));
+                XLSX.utils.book_append_sheet(wb, wsVentas, "Ventas");
+            }
+
+            if(comprasRef.length > 0) {
+                const wsCompras = XLSX.utils.json_to_sheet(comprasRef.map(c => ({
+                    Fecha: c.fecha,
+                    ID: c.id,
+                    TotalUSD: c.totalUSD,
+                    FleteBs: c.taxiBs,
+                    TasaBCV: c.tasaBCV,
+                    Articulos: c.productos ? c.productos.length : 0
+                })));
+                XLSX.utils.book_append_sheet(wb, wsCompras, "Compras");
+            }
+
+            XLSX.writeFile(wb, cierre.nombre);
         }
 
         function renderHistorialCierres() {
@@ -1184,7 +1271,13 @@
             [...estado.cierres].reverse().forEach(c => {
                 const el = document.createElement('div');
                 el.className = "flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100 text-[11px]";
-                el.innerHTML = `<span class="text-gray-600 font-semibold">${c.fecha}</span><span class="text-blue-600 font-mono font-bold">${c.nombre}</span>`;
+                el.innerHTML = `
+                    <div>
+                        <span class="text-gray-600 font-semibold block">${c.fecha}</span>
+                        <span class="text-blue-600 font-mono font-bold">${c.nombre}</span>
+                    </div>
+                    <button onclick="descargarRespaldoExistente(${c.id})" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-2.5 py-1 rounded font-bold shadow-sm">📥 Descargar</button>
+                `;
                 container.appendChild(el);
             });
         }

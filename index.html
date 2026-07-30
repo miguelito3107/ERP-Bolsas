@@ -4,18 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ERP - Comercial</title>
-    <script src="https://cdn.jsdelivr.net/npm/tailwindcss-cdn@3.4.10/tailwindcss.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        .modal { display: none; }
-        .modal.active { display: flex; }
+        .tab-content { display: none; opacity: 0; transition: opacity 0.3s ease; }
+        .tab-content.active { display: block; opacity: 1; }
+        /* Mejora en transiciones de modales */
+        .modal { opacity: 0; pointer-events: none; visibility: hidden; transition: all 0.3s ease; }
+        .modal.active { opacity: 1; pointer-events: auto; visibility: visible; }
         .pb-safe { padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
     </style>
 </head>
 <body class="bg-gray-100 pb-safe">
+
+    <!-- CONTENEDOR DE TOASTS (Notificaciones) -->
+    <div id="toast-container" class="fixed top-16 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2 w-11/12 max-w-sm pointer-events-none"></div>
 
     <!-- PIZARRA DE TASAS -->
     <header class="bg-blue-600 text-white p-4 sticky top-0 z-40 shadow-md">
@@ -23,7 +27,7 @@
         <div class="text-xs text-center opacity-90 flex justify-center items-center gap-2 mt-1">
             <span>Tasa BCV Activa:</span> 
             <span id="bcv-badge" class="bg-blue-800 px-2 py-0.5 rounded font-mono font-bold shadow-inner">Cargando...</span>
-            <button onclick="obtenerTasaBCV()" class="bg-blue-500 hover:bg-blue-400 active:scale-95 text-white px-2 py-0.5 rounded transition shadow border border-blue-400">
+            <button onclick="obtenerTasaBCV()" class="bg-blue-500 hover:bg-blue-400 active:scale-95 text-white px-2 py-0.5 rounded transition shadow border border-blue-400" title="Actualizar Tasa">
                 🔄
             </button>
         </div>
@@ -57,7 +61,7 @@
                     <span id="txt-capital-inv" class="font-bold text-blue-700">$0,00</span>
                 </div>
 
-                <div id="semaforo" class="p-4 rounded-lg text-center font-bold text-white bg-blue-500 mb-2 mt-2 shadow-inner">
+                <div id="semaforo" class="p-4 rounded-lg text-center font-bold text-white bg-blue-500 mb-2 mt-2 shadow-inner transition-colors duration-300">
                     DISPONIBLE EN NETO: <span id="txt-recompra" class="text-lg tracking-wide">$0,00</span>
                 </div>
                 <p class="text-[10px] text-center text-gray-400">El Disponible Neto es tu efectivo restando tus deudas pendientes.</p>
@@ -84,7 +88,7 @@
             <div class="bg-white p-4 rounded-xl shadow space-y-3 border-t-4 border-indigo-500">
                 <h3 class="text-sm font-bold text-gray-800 border-b pb-2">Cierres de Periodo</h3>
                 <div class="grid grid-cols-2 gap-2">
-                    <select id="tipo-cierre-periodo" class="p-2 border rounded-lg text-xs bg-gray-50 font-semibold text-gray-700">
+                    <select id="tipo-cierre-periodo" class="p-2 border rounded-lg text-xs bg-gray-50 font-semibold text-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none">
                         <option value="Día">Cierre Diario</option>
                         <option value="Semana">Cierre Semanal</option>
                         <option value="Mes">Cierre Mensual</option>
@@ -120,7 +124,7 @@
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="block text-xs font-bold text-gray-700">Fecha de Factura</label>
-                        <input type="date" id="viaje-fecha" class="w-full mt-1 p-2 border rounded-lg bg-gray-50 text-sm font-semibold text-gray-800">
+                        <input type="date" id="viaje-fecha" class="w-full mt-1 p-2 border rounded-lg bg-gray-50 text-sm font-semibold text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700">Tasa BCV del Día</label>
@@ -130,25 +134,25 @@
 
                 <div class="w-full">
                     <label class="block text-xs font-bold text-gray-700">Costo Flete/Taxi de este viaje (Bs.)</label>
-                    <input type="text" id="viaje-taxi-bs" inputmode="decimal" placeholder="Ej: 1200,50" class="w-full mt-1 p-2 border rounded-lg bg-gray-50 font-semibold text-blue-600 text-sm">
+                    <input type="text" id="viaje-taxi-bs" inputmode="decimal" placeholder="Ej: 1200.50" class="w-full mt-1 p-2 border rounded-lg bg-gray-50 font-semibold text-blue-600 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
                 </div>
 
                 <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
                     <label class="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer">
-                        <input type="checkbox" id="viaje-flete-compartido" class="w-4 h-4 rounded text-blue-600">
-                        ¿Compartir flete proporcionalmente con otra factura?
+                        <input type="checkbox" id="viaje-flete-compartido" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
+                        ¿Compartir flete proporcionalmente?
                     </label>
                 </div>
 
                 <div class="bg-blue-50 p-3 rounded-lg border border-blue-200 space-y-2">
                     <label class="flex items-center gap-2 text-xs font-bold text-blue-900 uppercase cursor-pointer">
-                        <input type="checkbox" id="viaje-cashea" onchange="toggleCasheaCampos()" class="w-4 h-4 rounded text-blue-600">
+                        <input type="checkbox" id="viaje-cashea" onchange="toggleCasheaCampos()" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
                         ¿Esta compra es por Cashea?
                     </label>
-                    <div id="campos-cashea" class="hidden grid grid-cols-2 gap-2 pt-1 border-t border-blue-200">
+                    <div id="campos-cashea" class="hidden grid-cols-2 gap-2 pt-1 border-t border-blue-200">
                         <div>
                             <label class="text-[10px] font-bold text-blue-800 block">Pago Inicial (Bs.)</label>
-                            <input type="text" id="cashea-inicial-bs" inputmode="decimal" oninput="calcularRestanteCashea()" placeholder="Ej: 2500,00" class="w-full p-2 border rounded-lg text-sm bg-white font-semibold text-blue-700">
+                            <input type="text" id="cashea-inicial-bs" inputmode="decimal" oninput="calcularRestanteCashea()" placeholder="Ej: 2500.00" class="w-full p-2 border rounded-lg text-sm bg-white font-semibold text-blue-700 focus:ring-2 focus:ring-blue-500 outline-none">
                         </div>
                         <div>
                             <label class="text-[10px] font-bold text-blue-800 block">Quedo Debiendo ($)</label>
@@ -158,23 +162,23 @@
                 </div>
 
                 <div class="border-t pt-2">
-                    <p class="text-xs font-bold text-gray-500 uppercase mb-2">Añadir Artículos al Lote de la Factura</p>
+                    <p class="text-xs font-bold text-gray-500 uppercase mb-2">Añadir Artículos al Lote</p>
                     <div class="space-y-2 relative">
                         <label class="text-[11px] text-gray-600 block font-semibold">Buscar Código de Producto</label>
-                        <input type="text" id="prod-buscar-compra" oninput="filtrarProductos('compra')" onfocus="mostrarListaProductos('compra')" placeholder="Escriba para filtrar..." class="w-full p-2 border rounded-lg text-sm bg-white font-mono font-bold text-blue-700">
-                        <div id="dropdown-productos-compra" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 divide-y divide-gray-100"></div>
+                        <input type="text" id="prod-buscar-compra" oninput="filtrarProductos('compra')" onfocus="mostrarListaProductos('compra')" placeholder="Escriba para filtrar..." class="w-full p-2 border rounded-lg text-sm bg-white font-mono font-bold text-blue-700 focus:ring-2 focus:ring-blue-500 outline-none">
+                        <div id="dropdown-productos-compra" class="hidden absolute left-0 right-0 top-14 bg-white border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 divide-y divide-gray-100"></div>
 
                         <div class="grid grid-cols-2 gap-2 pt-1">
                             <div>
                                 <label class="text-[10px] text-gray-500 block font-semibold">Base Unit. (Bs)</label>
-                                <input type="text" id="prod-precio-bs" inputmode="decimal" placeholder="Ej: 317,50" class="w-full p-2 border rounded-lg text-sm bg-gray-50">
+                                <input type="text" id="prod-precio-bs" inputmode="decimal" placeholder="Ej: 317.50" class="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                             <div>
                                 <label class="text-[10px] text-gray-500 block font-semibold">Cantidad Bultos</label>
-                                <input type="text" id="prod-cant-compra" inputmode="numeric" placeholder="Ej: 10" class="w-full p-2 border rounded-lg text-sm bg-gray-50">
+                                <input type="text" id="prod-cant-compra" inputmode="numeric" placeholder="Ej: 10" class="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                         </div>
-                        <button type="button" onclick="agregarProductoAlLoteCompra()" class="w-full bg-gray-800 active:scale-95 text-white p-2 rounded-lg text-xs font-bold transition">+ Agregar Línea Fiscal a la Factura</button>
+                        <button type="button" onclick="agregarProductoAlLoteCompra()" class="w-full bg-gray-800 active:scale-95 text-white p-2 rounded-lg text-xs font-bold transition">+ Agregar Línea Fiscal</button>
                     </div>
                 </div>
 
@@ -188,7 +192,7 @@
             </div>
 
             <div class="pt-2">
-                <input type="text" id="compra-filtro" oninput="renderCompras()" placeholder="🔍 Buscar Facturas (fecha, monto o #)..." class="w-full p-2 border rounded-lg text-xs bg-white font-medium text-gray-700 shadow-sm">
+                <input type="text" id="compra-filtro" oninput="renderCompras()" placeholder="🔍 Buscar Facturas (fecha, monto o #)..." class="w-full p-2 border rounded-lg text-xs bg-white font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none">
             </div>
             <div id="lista-compras" class="space-y-2"></div>
         </div>
@@ -206,31 +210,31 @@
                 <div class="bg-white p-4 rounded-xl shadow space-y-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-700">Fecha de Despacho</label>
-                        <input type="date" id="venta-fecha" class="w-full mt-1 p-2.5 border rounded-lg bg-gray-50 text-sm font-semibold text-gray-800">
+                        <input type="date" id="venta-fecha" class="w-full mt-1 p-2 border rounded-lg bg-gray-50 text-sm font-semibold text-gray-800 focus:ring-2 focus:ring-orange-500 outline-none">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700">Cliente</label>
-                        <input type="text" id="venta-cliente" placeholder="Nombre del Cliente" class="w-full mt-1 p-3 border rounded-lg text-sm bg-gray-50">
+                        <input type="text" id="venta-cliente" placeholder="Nombre del Cliente" class="w-full mt-1 p-3 border rounded-lg text-sm bg-gray-50 focus:ring-2 focus:ring-orange-500 outline-none">
                     </div>
                     
                     <div class="border-t border-orange-200 pt-3 mt-2">
                         <p class="text-xs font-bold text-orange-600 uppercase mb-2">Añadir Bultos al Despacho</p>
                         <div class="space-y-2 relative">
                             <label class="text-[11px] text-gray-600 block font-semibold">Buscar Código de Producto</label>
-                            <input type="text" id="prod-buscar-venta" oninput="filtrarProductos('venta')" onfocus="mostrarListaProductos('venta')" placeholder="Escriba para filtrar..." class="w-full p-2 border rounded-lg text-sm bg-white font-mono font-bold text-orange-600">
-                            <div id="dropdown-productos-venta" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 divide-y divide-gray-100"></div>
+                            <input type="text" id="prod-buscar-venta" oninput="filtrarProductos('venta')" onfocus="mostrarListaProductos('venta')" placeholder="Escriba para filtrar..." class="w-full p-2 border rounded-lg text-sm bg-white font-mono font-bold text-orange-600 focus:ring-2 focus:ring-orange-500 outline-none">
+                            <div id="dropdown-productos-venta" class="hidden absolute left-0 right-0 top-14 bg-white border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 divide-y divide-gray-100"></div>
 
                             <div class="grid grid-cols-2 gap-2 pt-1">
                                 <div>
                                     <label class="text-[10px] text-gray-500 block font-semibold">Precio Venta Unit. ($)</label>
-                                    <input type="text" id="prod-precio-usd-venta" inputmode="decimal" placeholder="Ej: 45,50" class="w-full p-2 border rounded-lg text-sm bg-gray-50">
+                                    <input type="text" id="prod-precio-usd-venta" inputmode="decimal" placeholder="Ej: 45.50" class="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:ring-2 focus:ring-orange-500 outline-none">
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-500 block font-semibold">Cantidad Bultos</label>
-                                    <input type="text" id="prod-cant-venta" inputmode="numeric" placeholder="Ej: 5" class="w-full p-2 border rounded-lg text-sm bg-gray-50">
+                                    <input type="text" id="prod-cant-venta" inputmode="numeric" placeholder="Ej: 5" class="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:ring-2 focus:ring-orange-500 outline-none">
                                 </div>
                             </div>
-                            <button type="button" onclick="agregarProductoAlLoteVenta()" class="w-full bg-orange-100 active:scale-95 text-orange-700 p-2 rounded-lg text-xs font-bold border border-orange-300 transition">+ Agregar Bultos al Cliente</button>
+                            <button type="button" onclick="agregarProductoAlLoteVenta()" class="w-full bg-orange-100 hover:bg-orange-200 active:scale-95 text-orange-700 p-2 rounded-lg text-xs font-bold border border-orange-300 transition">+ Agregar Bultos</button>
                         </div>
                     </div>
 
@@ -240,11 +244,11 @@
                         <p class="text-right font-bold pt-1 border-t border-orange-200 text-gray-800">Total Crédito: $<span id="pre-total-venta">0,00</span></p>
                     </div>
 
-                    <button type="button" onclick="procesarVenta()" class="w-full bg-orange-500 active:bg-orange-600 active:scale-95 text-white p-3 rounded-lg font-bold text-sm shadow transition">Registrar Crédito Cliente</button>
+                    <button type="button" onclick="procesarVenta()" class="w-full bg-orange-500 hover:bg-orange-600 active:scale-95 text-white p-3 rounded-lg font-bold text-sm shadow transition">Registrar Crédito Cliente</button>
                 </div>
                 
                 <div class="bg-white p-3 rounded-xl shadow space-y-2">
-                    <input type="text" id="venta-busqueda" oninput="renderVentas()" placeholder="🔍 Buscar nombre de cliente..." class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-medium text-gray-700">
+                    <input type="text" id="venta-busqueda" oninput="renderVentas()" placeholder="🔍 Buscar nombre de cliente..." class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-medium text-gray-700 focus:ring-2 focus:ring-orange-500 outline-none">
                     <div class="flex gap-2">
                         <select id="venta-filtro-estatus" onchange="renderVentas()" class="w-1/2 p-2 border rounded-lg text-xs bg-gray-50 font-semibold text-gray-700">
                             <option value="TODOS">Todas las facturas</option>
@@ -268,7 +272,7 @@
             <div id="subtab-cartera" class="space-y-4 hidden">
                 <h2 class="text-lg font-bold text-gray-800">Cartera Consolidada por Cliente</h2>
                 <div class="bg-white p-3 rounded-xl shadow space-y-2">
-                    <input type="text" id="cartera-busqueda" oninput="renderCarteraConsolidada()" placeholder="🔍 Buscar cliente en cartera..." class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-medium text-gray-700">
+                    <input type="text" id="cartera-busqueda" oninput="renderCarteraConsolidada()" placeholder="🔍 Buscar cliente en cartera..." class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none">
                     <div class="flex gap-2">
                         <select id="cartera-filtro" onchange="renderCarteraConsolidada()" class="w-1/2 p-2 border rounded-lg text-xs bg-gray-50 font-semibold text-gray-700">
                             <option value="TODOS">Todos los clientes</option>
@@ -293,22 +297,22 @@
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="block text-xs font-bold text-gray-700">Fecha Registro</label>
-                        <input type="date" id="credito-fecha" class="w-full mt-1 p-2.5 border rounded-lg bg-gray-50 text-sm font-semibold text-gray-800">
+                        <input type="date" id="credito-fecha" class="w-full mt-1 p-2 border rounded-lg bg-gray-50 text-sm font-semibold text-gray-800">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700">Tasa Cambio P2P/Ref</label>
-                        <input type="text" id="credito-p2p" inputmode="decimal" required placeholder="Ej: 64,50" class="w-full mt-1 p-2.5 border rounded-lg text-sm bg-gray-50">
+                        <input type="text" id="credito-p2p" inputmode="decimal" required placeholder="Ej: 64.50" class="w-full mt-1 p-2 border rounded-lg text-sm bg-gray-50 focus:ring-2 focus:ring-purple-500 outline-none">
                     </div>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-700">Concepto / Acreedor</label>
-                    <input type="text" id="credito-fuente" placeholder="Ej: Proveedor o Cuota Cashea" required class="w-full mt-1 p-3 border rounded-lg text-sm bg-gray-50">
+                    <input type="text" id="credito-fuente" placeholder="Ej: Proveedor o Cuota Cashea" required class="w-full mt-1 p-2 border rounded-lg text-sm bg-gray-50 focus:ring-2 focus:ring-purple-500 outline-none">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-700">Monto ($ o USDT)</label>
-                    <input type="text" id="credito-monto" inputmode="decimal" required placeholder="Ej: 150,00" class="w-full mt-1 p-3 border rounded-lg text-sm bg-gray-50">
+                    <input type="text" id="credito-monto" inputmode="decimal" required placeholder="Ej: 150.00" class="w-full mt-1 p-2 border rounded-lg text-sm bg-gray-50 focus:ring-2 focus:ring-purple-500 outline-none">
                 </div>
-                <button type="submit" class="w-full bg-purple-600 active:scale-95 text-white p-3 rounded-lg font-bold text-sm transition">Registrar Obligación Manual</button>
+                <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 active:scale-95 text-white p-3 rounded-lg font-bold text-sm transition shadow">Registrar Obligación Manual</button>
             </form>
             <div id="lista-creditos" class="space-y-2"></div>
         </div>
@@ -321,13 +325,13 @@
                 <h3 class="text-xs font-bold text-gray-700 mb-2 flex items-center gap-1">🔧 Ajuste Manual (Restar Bultos)</h3>
                 <div class="grid grid-cols-3 gap-2 mb-2">
                     <div class="col-span-2">
-                        <select id="ajuste-prod" class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-mono"></select>
+                        <select id="ajuste-prod" class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-mono focus:ring-2 focus:ring-red-500 outline-none"></select>
                     </div>
                     <div>
-                        <input type="text" id="ajuste-cant" inputmode="numeric" class="w-full p-2 border rounded-lg text-xs bg-gray-50" placeholder="Cant.">
+                        <input type="text" id="ajuste-cant" inputmode="numeric" class="w-full p-2 border rounded-lg text-xs bg-gray-50 focus:ring-2 focus:ring-red-500 outline-none" placeholder="Cant.">
                     </div>
                 </div>
-                <input type="text" id="ajuste-motivo" class="w-full p-2 border rounded-lg text-xs bg-gray-50 mb-2" placeholder="Motivo (Ej: Uso personal, regalado, dañado...)">
+                <input type="text" id="ajuste-motivo" class="w-full p-2 border rounded-lg text-xs bg-gray-50 mb-2 focus:ring-2 focus:ring-red-500 outline-none" placeholder="Motivo (Ej: Uso personal, regalado...)">
                 <button onclick="registrarAjuste()" class="w-full bg-red-100 hover:bg-red-200 active:scale-95 text-red-700 p-2 rounded-lg text-xs font-bold border border-red-300 transition">➖ Eliminar Bultos del Sistema</button>
             </div>
 
@@ -341,14 +345,14 @@
                 </div>
 
                 <div class="space-y-2 mb-3 pb-3 border-b border-gray-100">
-                    <input type="text" id="buscador-stock" oninput="renderInventario()" placeholder="🔍 Buscar insumos (ej. Envoplast, canilla...)" class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-medium text-gray-700">
+                    <input type="text" id="buscador-stock" oninput="renderInventario()" placeholder="🔍 Buscar insumos..." class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none">
                     <div class="flex gap-2">
-                        <select id="filtro-inv-disp" onchange="renderInventario()" class="w-1/2 p-2 border rounded-lg text-[11px] bg-gray-50 text-gray-700 font-semibold">
+                        <select id="filtro-inv-disp" onchange="renderInventario()" class="w-1/2 p-2 border rounded-lg text-[11px] bg-gray-50 text-gray-700 font-semibold outline-none">
                             <option value="TODOS">Todos los productos</option>
                             <option value="DISP">Con Disponibilidad (>0)</option>
                             <option value="AGOT">Agotados (0 o menos)</option>
                         </select>
-                        <select id="filtro-inv-orden" onchange="renderInventario()" class="w-1/2 p-2 border rounded-lg text-[11px] bg-gray-50 text-gray-700 font-semibold">
+                        <select id="filtro-inv-orden" onchange="renderInventario()" class="w-1/2 p-2 border rounded-lg text-[11px] bg-gray-50 text-gray-700 font-semibold outline-none">
                             <option value="AZ">Alfabético (A-Z)</option>
                             <option value="ZA">Alfabético (Z-A)</option>
                             <option value="MAX_CANT">Mayor stock primero</option>
@@ -357,41 +361,41 @@
                     </div>
                 </div>
 
-                <div id="dashboard-inventario" class="space-y-1 max-h-[50vh] overflow-y-auto divide-y divide-gray-100"></div>
+                <div id="dashboard-inventario" class="space-y-1 max-h-[50vh] overflow-y-auto divide-y divide-gray-100 pr-1"></div>
             </div>
         </div>
 
     </main>
 
     <!-- Modales -->
-    <div id="modal-detalle" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4 transition-opacity">
-        <div class="bg-white rounded-xl max-w-sm w-full max-h-[85vh] flex flex-col p-4 shadow-2xl relative">
+    <div id="modal-detalle" class="modal fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl max-w-sm w-full max-h-[85vh] flex flex-col p-4 shadow-2xl relative transform transition-transform scale-95 duration-300">
             <h3 class="text-base font-bold text-gray-800 border-b pb-2 pr-6">Detalle Operación</h3>
-            <button onclick="cerrarModal('modal-detalle')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold active:scale-95">×</button>
+            <button onclick="cerrarModal('modal-detalle')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold active:scale-95 transition">×</button>
             <div id="modal-detalle-body" class="overflow-y-auto flex-1 my-3 space-y-3 text-xs text-gray-600"></div>
             <button onclick="cerrarModal('modal-detalle')" class="w-full bg-gray-800 active:scale-95 text-white p-3 rounded-lg text-sm font-bold mt-2 transition">Cerrar Ventana</button>
         </div>
     </div>
 
-    <div id="modal-editar" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
-        <div class="bg-white rounded-xl max-w-sm w-full max-h-[90vh] flex flex-col p-4 shadow-2xl relative">
+    <div id="modal-editar" class="modal fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl max-w-sm w-full max-h-[90vh] flex flex-col p-4 shadow-2xl relative transform transition-transform scale-95 duration-300">
             <h3 id="modal-editar-titulo" class="text-base font-bold text-gray-800 border-b pb-2 pr-6">Modificar Datos</h3>
-            <button onclick="cerrarModal('modal-editar')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold active:scale-95">×</button>
-            <div id="modal-editar-body" class="overflow-y-auto flex-1 my-3 space-y-4 text-xs"></div>
+            <button onclick="cerrarModal('modal-editar')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold active:scale-95 transition">×</button>
+            <div id="modal-editar-body" class="overflow-y-auto flex-1 my-3 space-y-4 text-xs pr-1"></div>
             <div class="flex gap-2 pt-2 border-t" id="modal-editar-botones">
-                <button onclick="cerrarModal('modal-editar')" class="w-1/2 bg-gray-200 text-gray-700 p-3 rounded-lg font-bold active:scale-95">Cancelar</button>
-                <button onclick="guardarEdicionGuardada()" class="w-1/2 bg-blue-600 text-white p-3 rounded-lg font-bold active:scale-95 shadow">Guardar</button>
+                <button onclick="cerrarModal('modal-editar')" class="w-1/2 bg-gray-200 text-gray-700 p-3 rounded-lg font-bold active:scale-95 transition">Cancelar</button>
+                <button onclick="guardarEdicionGuardada()" class="w-1/2 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-bold active:scale-95 shadow transition">Guardar</button>
             </div>
         </div>
     </div>
 
     <!-- Barra de Navegación Inferior -->
     <nav class="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around p-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-30 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
-        <button onclick="switchTab('rescate')" class="flex flex-col items-center text-blue-600 py-1 px-3 w-full"><span class="text-2xl mb-0.5">📊</span><span class="text-[10px] font-semibold">Rescate</span></button>
-        <button onclick="switchTab('compras')" class="flex flex-col items-center text-gray-400 py-1 px-3 w-full"><span class="text-2xl mb-0.5">🛒</span><span class="text-[10px] font-semibold">Compras</span></button>
-        <button onclick="switchTab('inventario')" class="flex flex-col items-center text-gray-400 py-1 px-3 w-full"><span class="text-2xl mb-0.5">📦</span><span class="text-[10px] font-semibold">Stock</span></button>
-        <button onclick="switchTab('ventas')" class="flex flex-col items-center text-gray-400 py-1 px-3 w-full"><span class="text-2xl mb-0.5">🚛</span><span class="text-[10px] font-semibold">Clientes</span></button>
-        <button onclick="switchTab('creditos')" class="flex flex-col items-center text-gray-400 py-1 px-3 w-full"><span class="text-2xl mb-0.5">💸</span><span class="text-[10px] font-semibold">Deudas</span></button>
+        <button onclick="switchTab('rescate')" class="flex flex-col items-center text-blue-600 py-1 px-3 w-full transition-colors"><span class="text-2xl mb-0.5">📊</span><span class="text-[10px] font-semibold">Rescate</span></button>
+        <button onclick="switchTab('compras')" class="flex flex-col items-center text-gray-400 py-1 px-3 w-full transition-colors"><span class="text-2xl mb-0.5">🛒</span><span class="text-[10px] font-semibold">Compras</span></button>
+        <button onclick="switchTab('inventario')" class="flex flex-col items-center text-gray-400 py-1 px-3 w-full transition-colors"><span class="text-2xl mb-0.5">📦</span><span class="text-[10px] font-semibold">Stock</span></button>
+        <button onclick="switchTab('ventas')" class="flex flex-col items-center text-gray-400 py-1 px-3 w-full transition-colors"><span class="text-2xl mb-0.5">🚛</span><span class="text-[10px] font-semibold">Clientes</span></button>
+        <button onclick="switchTab('creditos')" class="flex flex-col items-center text-gray-400 py-1 px-3 w-full transition-colors"><span class="text-2xl mb-0.5">💸</span><span class="text-[10px] font-semibold">Deudas</span></button>
     </nav>
 
     <script>
@@ -409,6 +413,32 @@
         let tasaBCVGlobal = 61.63;
         let objetoEditando = null; 
 
+        // MEJORA: Sistema de Toasts moderno en lugar de `alert()`
+        function mostrarToast(mensaje, tipo = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let colorClases = 'bg-gray-800 text-white';
+            if(tipo === 'error') colorClases = 'bg-red-600 text-white font-bold';
+            if(tipo === 'success') colorClases = 'bg-green-600 text-white font-bold';
+            
+            toast.className = `${colorClases} px-4 py-3 rounded-lg shadow-xl text-sm transition-all duration-300 transform translate-y-[-20px] opacity-0 text-center`;
+            toast.innerText = mensaje;
+            
+            container.appendChild(toast);
+            
+            // Animación de entrada
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-[-20px]', 'opacity-0');
+            });
+            
+            // Eliminación automática
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'scale-95');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
         if (localStorage.getItem('mana_estado')) {
             try { 
                 estado = JSON.parse(localStorage.getItem('mana_estado')); 
@@ -416,17 +446,41 @@
                 if(!estado.cierres) estado.cierres = []; 
                 if(!estado.historialCierres) estado.historialCierres = []; 
                 if(estado.cortePeriodoTimestamp === undefined) estado.cortePeriodoTimestamp = 0;
-            } catch(e) {}
+            } catch(e) {
+                console.error("Error cargando estado:", e);
+                mostrarToast("Hubo un error cargando tus datos previos", "error");
+            }
         }
 
-        function guardarEnLocalStorage() { localStorage.setItem('mana_estado', JSON.stringify(estado)); }
-        function obtenerFechaActualLocal() { const d = new Date(); return [d.getFullYear(), ('' + (d.getMonth() + 1)).padStart(2, '0'), ('' + d.getDate()).padStart(2, '0')].join('-'); }
+        function guardarEnLocalStorage() { 
+            localStorage.setItem('mana_estado', JSON.stringify(estado)); 
+        }
+        
+        function obtenerFechaActualLocal() { 
+            const d = new Date(); 
+            return [d.getFullYear(), ('' + (d.getMonth() + 1)).padStart(2, '0'), ('' + d.getDate()).padStart(2, '0')].join('-'); 
+        }
 
+        // MEJORA: Parseo de números más robusto (Soporta formatos 1.200,50 o 1200.50 sin romper los decimales)
         function parseNum(valor) {
             if (typeof valor === 'number') return valor;
             if (!valor) return 0;
-            let limpio = String(valor).trim().replace(/\./g, '').replace(',', '.');
-            let num = parseFloat(limpio);
+            let str = String(valor).trim();
+            
+            if (str.includes('.') && str.includes(',')) {
+                // Formato venezolano: 1.200,50
+                if (str.indexOf('.') < str.indexOf(',')) {
+                    str = str.replace(/\./g, '').replace(',', '.');
+                } else {
+                    // Formato gringo: 1,200.50
+                    str = str.replace(/,/g, '');
+                }
+            } else if (str.includes(',')) {
+                // Sólo coma: 1200,50
+                str = str.replace(',', '.');
+            }
+            
+            let num = parseFloat(str);
             return isNaN(num) ? 0 : num;
         }
 
@@ -441,11 +495,25 @@
                 const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
                 const data = await res.json();
                 if(data && data.promedio) tasaBCVGlobal = parseFloat(data.promedio);
-            } catch (e) {}
+                mostrarToast("Tasa BCV actualizada exitosamente", "success");
+            } catch (e) {
+                mostrarToast("No se pudo obtener la tasa en vivo, usando última guardada", "error");
+            }
             badge.innerText = `Bs. ${fmt(tasaBCVGlobal)}`;
             if(document.getElementById('viaje-bcv')) document.getElementById('viaje-bcv').value = fmt(tasaBCVGlobal);
-            inicializarFechasFormularios(); cargarSelectAjustes(); actualizarDashboard(); renderCompras(); renderVentas(); renderCarteraConsolidada(); renderCreditos(); renderInventario(); renderHistorialCierres(); renderHistorialCortesPeriodo();
+            
+            inicializarFechasFormularios(); 
+            cargarSelectAjustes(); 
+            actualizarDashboard(); 
+            renderCompras(); 
+            renderVentas(); 
+            renderCarteraConsolidada(); 
+            renderCreditos(); 
+            renderInventario(); 
+            renderHistorialCierres(); 
+            renderHistorialCortesPeriodo();
         }
+        
         window.onload = obtenerTasaBCV;
 
         function inicializarFechasFormularios() {
@@ -533,7 +601,7 @@
             container.innerHTML = '';
             lista.forEach(prod => {
                 const item = document.createElement('div');
-                item.className = "p-3 text-sm font-mono font-bold text-gray-700 hover:bg-gray-100 cursor-pointer active:bg-gray-200";
+                item.className = "p-3 text-sm font-mono font-bold text-gray-700 hover:bg-blue-50 cursor-pointer active:bg-blue-100 transition-colors";
                 item.innerText = prod;
                 item.onclick = function() { 
                     document.getElementById(`prod-buscar-${contexto}`).value = prod; 
@@ -546,7 +614,10 @@
         function filtrarProductos(contexto) {
             const b = document.getElementById(`prod-buscar-${contexto}`).value.toUpperCase();
             construirListaProductos(MAESTRO_PRODUCTOS.filter(p => p.toUpperCase().includes(b)), contexto);
-            document.getElementById(`dropdown-productos-${contexto}`).classList.remove('hidden');
+            
+            const dp = document.getElementById(`dropdown-productos-${contexto}`);
+            if (b) dp.classList.remove('hidden');
+            else dp.classList.add('hidden');
         }
 
         function mostrarListaProductos(contexto) { 
@@ -554,6 +625,7 @@
             document.getElementById(`dropdown-productos-${contexto}`).classList.remove('hidden'); 
         }
 
+        // Cerrar dropdowns si se clickea afuera
         document.addEventListener('click', function(e) {
             ['compra', 'venta'].forEach(ctx => {
                 const i = document.getElementById(`prod-buscar-${ctx}`);
@@ -564,7 +636,10 @@
 
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('nav button').forEach(btn => { btn.classList.remove('text-blue-600'); btn.classList.add('text-gray-400'); });
+            document.querySelectorAll('nav button').forEach(btn => { 
+                btn.classList.remove('text-blue-600'); 
+                btn.classList.add('text-gray-400'); 
+            });
             event.currentTarget.classList.remove('text-gray-400');
             event.currentTarget.classList.add('text-blue-600');
             document.getElementById('tab-' + tabId).classList.add('active');
@@ -592,17 +667,41 @@
             }
         }
 
-        function abrirModal(id) { document.getElementById(id).classList.add('active'); }
-        function cerrarModal(id) { document.getElementById(id).classList.remove('active'); }
+        // MEJORA: Modales con transición de opacidad y escala visual
+        function abrirModal(id) { 
+            const m = document.getElementById(id);
+            m.classList.add('active'); 
+            setTimeout(() => {
+                m.querySelector('.bg-white').classList.remove('scale-95');
+                m.querySelector('.bg-white').classList.add('scale-100');
+            }, 10);
+        }
+        
+        function cerrarModal(id) { 
+            const m = document.getElementById(id);
+            m.querySelector('.bg-white').classList.remove('scale-100');
+            m.querySelector('.bg-white').classList.add('scale-95');
+            setTimeout(() => m.classList.remove('active'), 200); 
+        }
 
         function agregarProductoAlLoteCompra() {
             const n = document.getElementById('prod-buscar-compra').value.trim().toUpperCase();
             const p = parseNum(document.getElementById('prod-precio-bs').value);
             const c = parseInt(parseNum(document.getElementById('prod-cant-compra').value));
-            if (!n || isNaN(p) || isNaN(c)) { alert("Complete todos los campos."); return; }
+            
+            if (!n || isNaN(p) || isNaN(c)) { 
+                mostrarToast("Complete todos los campos de producto.", "error"); 
+                return; 
+            }
+            
             loteTemporalCompras.push({ nombre: n, precioBaseBs: p, cant: c });
-            document.getElementById('prod-buscar-compra').value = ''; document.getElementById('prod-precio-bs').value = ''; document.getElementById('prod-cant-compra').value = '';
-            renderPreLoteCompra(); if(document.getElementById('viaje-cashea').checked) calcularRestanteCashea();
+            
+            document.getElementById('prod-buscar-compra').value = ''; 
+            document.getElementById('prod-precio-bs').value = ''; 
+            document.getElementById('prod-cant-compra').value = '';
+            
+            renderPreLoteCompra(); 
+            if(document.getElementById('viaje-cashea').checked) calcularRestanteCashea();
         }
 
         function renderPreLoteCompra() {
@@ -613,17 +712,26 @@
             let sub = 0; const bcv = parseNum(document.getElementById('viaje-bcv').value) || tasaBCVGlobal;
             loteTemporalCompras.forEach((p, i) => {
                 sub += (((p.precioBaseBs * 1.16) / bcv) * p.cant);
-                itemsCont.innerHTML += `<div class="flex justify-between items-center border-b pb-1"><span>• ${p.nombre} (x${p.cant})</span><button onclick="quitarDeLoteCompra(${i})" class="text-red-500 font-bold bg-red-50 w-6 h-6 rounded active:scale-95">X</button></div>`;
+                itemsCont.innerHTML += `<div class="flex justify-between items-center border-b pb-1"><span>• ${p.nombre} (x${p.cant})</span><button onclick="quitarDeLoteCompra(${i})" class="text-red-500 font-bold bg-red-50 w-6 h-6 rounded active:scale-95 hover:bg-red-100 transition-colors">X</button></div>`;
             });
             document.getElementById('pre-total-merc').innerText = fmt(sub);
         }
 
-        function quitarDeLoteCompra(i) { loteTemporalCompras.splice(i, 1); renderPreLoteCompra(); if(document.getElementById('viaje-cashea').checked) calcularRestanteCashea(); }
+        function quitarDeLoteCompra(i) { 
+            loteTemporalCompras.splice(i, 1); 
+            renderPreLoteCompra(); 
+            if(document.getElementById('viaje-cashea').checked) calcularRestanteCashea(); 
+        }
 
         function procesarViajeCompra() {
-            if(loteTemporalCompras.length === 0) { alert("Agregue productos."); return; }
+            if(loteTemporalCompras.length === 0) { 
+                mostrarToast("Agregue artículos al lote primero.", "error"); 
+                return; 
+            }
+            
             const bcv = parseNum(document.getElementById('viaje-bcv').value) || tasaBCVGlobal;
             let totalUSD = 0;
+            
             const items = loteTemporalCompras.map(p => {
                 const cUSD = (p.precioBaseBs * 1.16) / bcv; totalUSD += (cUSD * p.cant);
                 return { ...p, costoProvUSD: cUSD, fleteAsignadoUnit: 0, costoRealUnit: cUSD, totalFilaUSD: cUSD * p.cant };
@@ -636,73 +744,150 @@
                 esCashea: document.getElementById('viaje-cashea').checked, inicialCasheaBs: parseNum(document.getElementById('cashea-inicial-bs').value),
                 restanteCashea: parseNum(document.getElementById('cashea-restante-usd').value), productos: items
             };
+            
             estado.compras.push(f);
 
+            // Lógica de prorrata de fletes
             if(f.compartido) {
                 const comp = estado.compras.filter(c => c.fecha === f.fecha && c.compartido);
-                let tBs = comp.reduce((s, c) => s + c.taxiBs, 0); let tU = comp.reduce((s, c) => s + c.totalUSD, 0);
+                let tBs = comp.reduce((s, c) => s + c.taxiBs, 0); 
+                let tU = comp.reduce((s, c) => s + c.totalUSD, 0);
                 if(tU > 0) {
                     const factor = (tBs / bcv) / tU;
                     estado.compras.forEach(x => {
                         if(x.fecha === f.fecha && x.compartido) {
-                            x.productos.forEach(p => { p.fleteAsignadoUnit = p.costoProvUSD * factor; p.costoRealUnit = p.costoProvUSD + p.fleteAsignadoUnit; p.totalFilaUSD = p.costoRealUnit * p.cant; });
+                            x.productos.forEach(p => { 
+                                p.fleteAsignadoUnit = p.costoProvUSD * factor; 
+                                p.costoRealUnit = p.costoProvUSD + p.fleteAsignadoUnit; 
+                                p.totalFilaUSD = p.costoRealUnit * p.cant; 
+                            });
                             x.totalUSD = x.productos.reduce((s, p) => s + p.totalFilaUSD, 0);
                         }
                     });
                 }
             } else {
                 const factor = totalUSD > 0 ? ((f.taxiBs / bcv) / totalUSD) : 0;
-                f.productos.forEach(p => { p.fleteAsignadoUnit = p.costoProvUSD * factor; p.costoRealUnit = p.costoProvUSD + p.fleteAsignadoUnit; p.totalFilaUSD = p.costoRealUnit * p.cant; });
+                f.productos.forEach(p => { 
+                    p.fleteAsignadoUnit = p.costoProvUSD * factor; 
+                    p.costoRealUnit = p.costoProvUSD + p.fleteAsignadoUnit; 
+                    p.totalFilaUSD = p.costoRealUnit * p.cant; 
+                });
                 f.totalUSD = f.productos.reduce((s, p) => s + p.totalFilaUSD, 0);
             }
 
             if(f.esCashea && f.restanteCashea > 0) {
-                estado.creditos.push({ id: Date.now()+1, fecha: f.fecha, fuente: `Cashea F #${f.id.toString().slice(-4)}`, montoUSDT: f.restanteCashea, tasaP2P: bcv, tasaBCV: bcv, brechaCambiaria: 0, estatus: 'DEBIENDO' });
+                estado.creditos.push({ 
+                    id: Date.now()+1, fecha: f.fecha, 
+                    fuente: `Cashea F #${f.id.toString().slice(-4)}`, 
+                    montoUSDT: f.restanteCashea, tasaP2P: bcv, tasaBCV: bcv, 
+                    brechaCambiaria: 0, estatus: 'DEBIENDO' 
+                });
             }
+            
             loteTemporalCompras = [];
-            document.getElementById('viaje-taxi-bs').value = ''; document.getElementById('viaje-flete-compartido').checked = false; document.getElementById('viaje-cashea').checked = false;
-            document.getElementById('cashea-inicial-bs').value = ''; document.getElementById('cashea-restante-usd').value = ''; toggleCasheaCampos();
-            guardarEnLocalStorage(); renderPreLoteCompra(); renderCompras(); renderInventario(); actualizarDashboard();
+            
+            // Reset de inputs
+            document.getElementById('viaje-taxi-bs').value = ''; 
+            document.getElementById('viaje-flete-compartido').checked = false; 
+            document.getElementById('viaje-cashea').checked = false;
+            document.getElementById('cashea-inicial-bs').value = ''; 
+            document.getElementById('cashea-restante-usd').value = ''; 
+            
+            toggleCasheaCampos();
+            guardarEnLocalStorage(); 
+            renderPreLoteCompra(); 
+            renderCompras(); 
+            renderInventario(); 
+            actualizarDashboard();
+            mostrarToast("Factura de compra registrada con éxito", "success");
         }
 
         function agregarProductoAlLoteVenta() {
             const n = document.getElementById('prod-buscar-venta').value.trim().toUpperCase();
             const p = parseNum(document.getElementById('prod-precio-usd-venta').value);
             const c = parseInt(parseNum(document.getElementById('prod-cant-venta').value));
-            if (!n || isNaN(p) || isNaN(c) || c <= 0) return alert("Complete los datos correctamente.");
+            
+            if (!n || isNaN(p) || isNaN(c) || c <= 0) {
+                mostrarToast("Llene los datos correctamente.", "error");
+                return;
+            }
             
             let disp = obtenerBultosDisponibles(n);
             if(c > disp && !confirm(`Tienes ${disp} bultos en sistema. ¿Vender ${c} y dejar inventario en negativo?`)) return;
 
             loteTemporalVentas.push({ nombre: n, precioUSD: p, cant: c });
-            document.getElementById('prod-buscar-venta').value = ''; document.getElementById('prod-precio-usd-venta').value = ''; document.getElementById('prod-cant-venta').value = '';
+            
+            document.getElementById('prod-buscar-venta').value = ''; 
+            document.getElementById('prod-precio-usd-venta').value = ''; 
+            document.getElementById('prod-cant-venta').value = '';
+            
             renderPreLoteVenta();
         }
 
         function renderPreLoteVenta() {
-            const c = document.getElementById('pre-lista-venta'); const i = document.getElementById('pre-lista-items-venta');
+            const c = document.getElementById('pre-lista-venta'); 
+            const i = document.getElementById('pre-lista-items-venta');
+            
             if(loteTemporalVentas.length === 0) { c.classList.add('hidden'); return; }
+            
             c.classList.remove('hidden'); i.innerHTML = ''; let t = 0;
-            loteTemporalVentas.forEach((p, x) => { t += p.precioUSD * p.cant; i.innerHTML += `<div class="flex justify-between items-center border-b border-orange-200 pb-1"><span>• ${p.nombre} (x${p.cant}) - $${fmt(p.precioUSD)}</span><button onclick="loteTemporalVentas.splice(${x},1); renderPreLoteVenta()" class="text-red-500 font-bold bg-red-50 w-6 h-6 rounded active:scale-95">X</button></div>`; });
+            loteTemporalVentas.forEach((p, x) => { 
+                t += p.precioUSD * p.cant; 
+                i.innerHTML += `<div class="flex justify-between items-center border-b border-orange-200 pb-1"><span>• ${p.nombre} (x${p.cant}) - $${fmt(p.precioUSD)}</span><button onclick="loteTemporalVentas.splice(${x},1); renderPreLoteVenta()" class="text-red-500 font-bold bg-red-50 w-6 h-6 rounded active:scale-95 hover:bg-red-100 transition-colors">X</button></div>`; 
+            });
             document.getElementById('pre-total-venta').innerText = fmt(t);
         }
 
         function procesarVenta() {
             const c = document.getElementById('venta-cliente').value.trim();
-            if(!c || loteTemporalVentas.length === 0) return alert("Falta cliente o productos.");
-            let m = 0; const p = loteTemporalVentas.map(x => { const t = x.precioUSD * x.cant; m += t; return { ...x, totalFila: t }; });
-            estado.ventas.push({ id: Date.now(), fecha: document.getElementById('venta-fecha').value || obtenerFechaActualLocal(), cliente: c, monto: m, abonado: 0, estatus: 'PENDIENTE', productos: p });
-            document.getElementById('venta-cliente').value = ''; loteTemporalVentas = [];
-            guardarEnLocalStorage(); renderPreLoteVenta(); renderVentas(); renderCarteraConsolidada(); renderInventario(); actualizarDashboard();
+            if(!c || loteTemporalVentas.length === 0) {
+                mostrarToast("Falta nombre de cliente o productos.", "error");
+                return;
+            }
+            
+            let m = 0; 
+            const p = loteTemporalVentas.map(x => { 
+                const t = x.precioUSD * x.cant; m += t; return { ...x, totalFila: t }; 
+            });
+            
+            estado.ventas.push({ 
+                id: Date.now(), 
+                fecha: document.getElementById('venta-fecha').value || obtenerFechaActualLocal(), 
+                cliente: c, monto: m, abonado: 0, estatus: 'PENDIENTE', productos: p 
+            });
+            
+            document.getElementById('venta-cliente').value = ''; 
+            loteTemporalVentas = [];
+            
+            guardarEnLocalStorage(); 
+            renderPreLoteVenta(); 
+            renderVentas(); 
+            renderCarteraConsolidada(); 
+            renderInventario(); 
+            actualizarDashboard();
+            mostrarToast("Despacho registrado a cuentas por cobrar", "success");
         }
 
         function abonarAVenta(id) {
             const v = estado.ventas.find(x => x.id === id); if (!v) return;
-            const pd = v.monto - (v.abonado || 0); const a = prompt(`Saldo: $${fmt(pd)}\nMonto a abonar ($):`);
-            if (a === null) return; const mA = parseNum(a);
-            if (isNaN(mA) || mA <= 0 || mA > pd) return alert("Monto inválido.");
-            v.abonado = (v.abonado || 0) + mA; v.estatus = (v.abonado >= v.monto) ? 'COBRADO' : 'PENDIENTE';
-            guardarEnLocalStorage(); renderVentas(); renderCarteraConsolidada(); actualizarDashboard();
+            const pd = v.monto - (v.abonado || 0); 
+            const a = prompt(`Cliente: ${v.cliente}\nSaldo pendiente: $${fmt(pd)}\nMonto a abonar ($):`);
+            if (a === null) return; 
+            
+            const mA = parseNum(a);
+            if (isNaN(mA) || mA <= 0 || mA > pd) {
+                mostrarToast("Monto de abono inválido.", "error");
+                return;
+            }
+            
+            v.abonado = (v.abonado || 0) + mA; 
+            v.estatus = (v.abonado >= v.monto) ? 'COBRADO' : 'PENDIENTE';
+            
+            guardarEnLocalStorage(); 
+            renderVentas(); 
+            renderCarteraConsolidada(); 
+            actualizarDashboard();
+            mostrarToast(`Abono de $${fmt(mA)} registrado exitosamente.`, "success");
         }
 
         function cargarSelectAjustes() {
@@ -717,7 +902,10 @@
             const cant = parseInt(parseNum(document.getElementById('ajuste-cant').value));
             const motivo = document.getElementById('ajuste-motivo').value.trim() || 'Ajuste manual de inventario';
             
-            if(!prod || isNaN(cant) || cant <= 0) { alert("Seleccione un producto y cantidad válida."); return; }
+            if(!prod || isNaN(cant) || cant <= 0) { 
+                mostrarToast("Seleccione producto y cantidad válida.", "error"); 
+                return; 
+            }
             
             estado.ajustes.push({ id: Date.now(), fecha: obtenerFechaActualLocal(), producto: prod, cant: cant, motivo: motivo });
             
@@ -725,7 +913,10 @@
             document.getElementById('ajuste-cant').value = '';
             document.getElementById('ajuste-motivo').value = '';
             
-            guardarEnLocalStorage(); renderInventario(); actualizarDashboard();
+            guardarEnLocalStorage(); 
+            renderInventario(); 
+            actualizarDashboard();
+            mostrarToast(`Se redujeron ${cant} bultos de ${prod}`, "success");
         }
 
         function renderInventario() {
@@ -822,12 +1013,12 @@
 
             cartera.forEach(c => {
                 const el = document.createElement('div');
-                el.className = `bg-white p-3 rounded-xl shadow border-l-4 ${c.deudaTotal > 0 ? 'border-orange-500' : 'border-green-500'} space-y-1`;
+                el.className = `bg-white p-3 rounded-xl shadow-sm border-l-4 ${c.deudaTotal > 0 ? 'border-orange-500' : 'border-green-500'} space-y-1 transition-all`;
                 el.innerHTML = `
                     <div class="flex justify-between items-center">
                         <span class="font-bold text-gray-800 text-sm">${c.nombre}</span>
                         <span class="px-2 py-0.5 rounded text-[10px] font-bold ${c.deudaTotal > 0 ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}">
-                            ${c.deudaTotal > 0 ? `${c.facturasPendientes} Facturas Pendientes` : 'Solvente ✅'}
+                            ${c.deudaTotal > 0 ? `${c.facturasPendientes} F. Pendientes` : 'Solvente ✅'}
                         </span>
                     </div>
                     <div class="flex justify-between text-xs pt-1 border-t border-gray-100 text-gray-600">
@@ -841,64 +1032,104 @@
 
         function verDetalleCompra(id) {
             const f = estado.compras.find(c => c.id === id); if(!f) return;
-            let h = `<p><b>Fecha:</b> ${f.fecha}</p><p><b>Tasa BCV:</b> Bs. ${fmt(f.tasaBCV)}</p><p><b>Flete Declarado:</b> Bs. ${fmt(f.taxiBs)} ${f.compartido ? '<span class="text-blue-600">(Com)</span>':''}</p>`;
-            h += `<hr class='my-2'>`;
+            
+            let h = `
+                <p><b>Fecha:</b> ${f.fecha}</p>
+                <p><b>Tasa BCV:</b> Bs. ${fmt(f.tasaBCV)}</p>
+                <p><b>Flete Declarado:</b> Bs. ${fmt(f.taxiBs)} ${f.compartido ? '<span class="text-blue-600">(Compartido)</span>':''}</p>
+                <hr class='my-2 border-gray-200'>
+            `;
+            
             f.productos.forEach(p => {
-                h += `<div class='bg-gray-50 p-2 rounded font-mono border mb-1'>
-                    <p class='font-bold text-blue-800'>${p.nombre} (x${p.cant})</p>
-                    <p>• Costo Prov: $${fmt(p.costoProvUSD)}</p>
-                    <p class='font-bold border-t border-gray-200 mt-1 pt-1 text-gray-800'>Costo Real Final: $${fmt(p.costoRealUnit)}</p>
+                h += `
+                <div class='bg-gray-50 p-2 rounded-lg font-mono border border-gray-200 mb-2 shadow-sm'>
+                    <p class='font-bold text-blue-800 text-sm'>${p.nombre} <span class="text-gray-500 text-xs font-sans">(x${p.cant})</span></p>
+                    <p class="mt-1">• Costo Prov: $${fmt(p.costoProvUSD)}</p>
+                    <p class='font-bold border-t border-gray-200 mt-1 pt-1 text-gray-800'>Costo Real Final: $${fmt(p.costoRealUnit)} c/u</p>
                 </div>`;
             });
-            h += `<p class='text-right font-bold text-blue-700 pt-2 text-sm uppercase border-t mt-2'>Total: $${fmt(f.totalUSD)}</p>`;
-            document.getElementById('modal-detalle-body').innerHTML = h; abrirModal('modal-detalle');
+            
+            h += `<p class='text-right font-black text-blue-700 pt-2 text-base uppercase border-t border-gray-300 mt-2'>Total: $${fmt(f.totalUSD)}</p>`;
+            document.getElementById('modal-detalle-body').innerHTML = h; 
+            abrirModal('modal-detalle');
         }
         
         function verDetalleVenta(id) {
             const v = estado.ventas.find(x => x.id === id); if(!v) return;
             const costos = obtenerCostosPromedio();
             let costoTotalDespacho = 0;
-            let h = `<p class='text-lg font-bold text-gray-800 mb-1'>${v.cliente}</p><p class='text-xs text-gray-500'><b>Fecha:</b> ${v.fecha}</p><hr class='my-2'>`;
+            
+            let h = `
+                <p class='text-lg font-bold text-gray-800 mb-1'>${v.cliente}</p>
+                <p class='text-xs text-gray-500'><b>Fecha:</b> ${v.fecha}</p>
+                <hr class='my-2 border-gray-200'>
+            `;
             
             if(v.productos && v.productos.length > 0) {
-                h += `<p class='font-bold text-orange-600 mb-2 uppercase text-[10px]'>Mercancía del Despacho:</p>`;
+                h += `<p class='font-bold text-orange-600 mb-2 uppercase text-[10px] tracking-wide'>Mercancía del Despacho:</p>`;
                 v.productos.forEach(p => {
                     const cProm = costos[p.nombre] || 0;
                     costoTotalDespacho += (cProm * p.cant);
-                    h += `<div class='bg-gray-50 p-2 rounded font-mono border mb-1'>
+                    h += `
+                    <div class='bg-orange-50 p-2 rounded-lg font-mono border border-orange-100 mb-2 shadow-sm'>
                         <p class='font-bold text-gray-800'>${p.nombre} (x${p.cant})</p>
-                        <div class='flex justify-between text-gray-600 text-[10px] mt-1 pt-1 border-t'><span>Precio Unit: $${fmt(p.precioUSD)}</span><span class='font-bold'>Sub: $${fmt(p.totalFila)}</span></div>
+                        <div class='flex justify-between text-gray-600 text-[10px] mt-1 pt-1 border-t border-orange-200'>
+                            <span>Precio Unit: $${fmt(p.precioUSD)}</span>
+                            <span class='font-bold'>Sub: $${fmt(p.totalFila)}</span>
+                        </div>
                     </div>`;
                 });
             }
             
             const ganancia = v.monto - costoTotalDespacho;
             const margen = v.monto > 0 ? (ganancia / v.monto) * 100 : 0;
-            h += `<hr class='my-3'>
-                  <div class='text-sm space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100 shadow-sm'>
-                      <div class='flex justify-between text-gray-600 text-xs'><span>Costo Mercancía Histórico:</span> <span class='font-mono'>-$${fmt(costoTotalDespacho)}</span></div>
-                      <div class='flex justify-between font-bold text-blue-700'><span>Total Facturado:</span> <span class='font-mono'>+$${fmt(v.monto)}</span></div>
-                      <div class='flex justify-between font-bold border-t border-blue-200 pt-2 mt-2 ${ganancia >= 0 ? 'text-green-600' : 'text-red-600'}'>
-                          <span>Utilidad (Ganancia):</span> 
-                          <span class='text-right font-mono'>$${fmt(ganancia)} <br><span class='text-[10px] font-sans text-gray-500'>(${fmt(margen)}% de margen)</span></span>
-                      </div>
-                  </div>`;
-            document.getElementById('modal-detalle-body').innerHTML = h; abrirModal('modal-detalle');
+            
+            h += `
+                <hr class='my-3 border-gray-200'>
+                <div class='text-sm space-y-2 p-3 bg-blue-50 rounded-xl border border-blue-100 shadow-inner'>
+                    <div class='flex justify-between text-gray-600 text-xs'>
+                        <span>Costo Histórico:</span> <span class='font-mono'>-$${fmt(costoTotalDespacho)}</span>
+                    </div>
+                    <div class='flex justify-between font-bold text-blue-700'>
+                        <span>Total Facturado:</span> <span class='font-mono'>+$${fmt(v.monto)}</span>
+                    </div>
+                    <div class='flex justify-between font-bold border-t border-blue-200 pt-2 mt-2 ${ganancia >= 0 ? 'text-green-600' : 'text-red-600'}'>
+                        <span>Utilidad Bruta:</span> 
+                        <span class='text-right font-mono'>
+                            $${fmt(ganancia)} <br>
+                            <span class='text-[10px] font-sans text-gray-500'>(${fmt(margen)}% de margen)</span>
+                        </span>
+                    </div>
+                </div>`;
+            document.getElementById('modal-detalle-body').innerHTML = h; 
+            abrirModal('modal-detalle');
         }
 
         function renderCompras() {
             const l = document.getElementById('lista-compras'); if(!l) return;
             const b = document.getElementById('compra-filtro').value.trim().toLowerCase();
             let cF = estado.compras;
+            
             if(b) cF = cF.filter(f => `#${f.id.toString().slice(-5)}`.includes(b) || f.fecha.includes(b) || f.totalUSD.toFixed(2).includes(b));
             l.innerHTML = '';
+            
             [...cF].reverse().forEach(f => {
                 const e = document.createElement('div');
-                e.className = "bg-white p-3 rounded-lg shadow border-l-4 border-blue-500 text-sm cursor-pointer mb-2 active:bg-gray-50";
+                e.className = "bg-white p-3 rounded-xl shadow-sm border-l-4 border-blue-500 text-sm cursor-pointer mb-3 hover:shadow-md active:bg-gray-50 transition-all";
                 e.setAttribute('onclick', `if(event.target.tagName !== 'BUTTON') verDetalleCompra(${f.id})`);
-                e.innerHTML = `<div class="flex justify-between font-bold text-gray-800"><span>Factura #${f.id.toString().slice(-5)}</span><span class="text-blue-600">$${fmt(f.totalUSD)}</span></div>
-                <div class="text-[11px] text-gray-400 font-semibold flex justify-between mt-1"><span>${f.fecha}</span><span>${f.productos.length} Items</span></div>
-                <div class="flex justify-end gap-3 text-[11px] pt-2 border-t mt-2"><button onclick="prepararEdicion('COMPRA', ${f.id})" class="text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded">✏️ Edit</button><button onclick="eliminarRegistro('COMPRA', ${f.id})" class="text-red-600 font-bold bg-red-50 px-2 py-1 rounded">🗑️ Del</button></div>`;
+                e.innerHTML = `
+                    <div class="flex justify-between font-bold text-gray-800">
+                        <span>Factura #${f.id.toString().slice(-5)}</span>
+                        <span class="text-blue-600 font-mono">$${fmt(f.totalUSD)}</span>
+                    </div>
+                    <div class="text-[11px] text-gray-500 font-semibold flex justify-between mt-1">
+                        <span>📅 ${f.fecha}</span>
+                        <span>📦 ${f.productos.length} Items</span>
+                    </div>
+                    <div class="flex justify-end gap-2 text-[11px] pt-2 border-t border-gray-100 mt-2">
+                        <button onclick="prepararEdicion('COMPRA', ${f.id})" class="text-blue-600 font-bold bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded transition">✏️ Editar</button>
+                        <button onclick="eliminarRegistro('COMPRA', ${f.id})" class="text-red-600 font-bold bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded transition">🗑️ Borrar</button>
+                    </div>`;
                 l.appendChild(e);
             });
         }
@@ -928,22 +1159,22 @@
                     const pd = v.monto - (v.abonado || 0); 
                     const bultosTotales = v.productos ? v.productos.reduce((s, p) => s + p.cant, 0) : 0;
                     
-                    e.className = `bg-white p-3 rounded-lg shadow border-l-4 ${v.estatus==='COBRADO'?'border-green-500':'border-orange-500'} mb-2 cursor-pointer active:bg-gray-50 transition`;
+                    e.className = `bg-white p-3 rounded-xl shadow-sm border-l-4 ${v.estatus==='COBRADO'?'border-green-500':'border-orange-500'} mb-3 cursor-pointer hover:shadow-md active:bg-gray-50 transition-all`;
                     e.setAttribute('onclick', `if(event.target.tagName !== 'BUTTON') verDetalleVenta(${v.id})`);
                     e.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div>
                             <p class="font-bold text-gray-800">${v.cliente}</p>
                             <p class="text-[10px] text-gray-500 font-semibold uppercase mt-0.5">${v.fecha} | ${bultosTotales} Bultos</p>
-                            <p class="text-xs font-bold mt-1.5 ${pd > 0 ? 'text-orange-600' : 'text-green-600'}">F: $${fmt(v.monto)} <br> Deuda: $${fmt(pd)}</p>
+                            <p class="text-xs font-bold mt-2 ${pd > 0 ? 'text-orange-600' : 'text-green-600'}">F: $${fmt(v.monto)} <br> Deuda: $${fmt(pd)}</p>
                         </div>
                         <div class="flex flex-col items-end gap-1">
-                            ${v.estatus==='PENDIENTE' ? `<button onclick="abonarAVenta(${v.id})" class="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow-sm z-10">💵 Abonar</button>` : `<span class="bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded font-bold border border-green-300">✅ Cobrado</span>`}
+                            ${v.estatus==='PENDIENTE' ? `<button onclick="abonarAVenta(${v.id})" class="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white text-xs px-4 py-2 rounded-lg font-bold shadow-sm z-10 transition">💵 Abonar</button>` : `<span class="bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded font-bold border border-green-300">✅ Cobrado</span>`}
                         </div>
                     </div>
-                    <div class="flex justify-end gap-3 text-[11px] border-t border-gray-100 pt-2 mt-2">
-                        <button onclick="prepararEdicion('VENTA', ${v.id})" class="text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded">✏️ Edit</button>
-                        <button onclick="eliminarRegistro('VENTA', ${v.id})" class="text-red-500 font-bold bg-red-50 px-2 py-1 rounded">🗑️ Del</button>
+                    <div class="flex justify-end gap-2 text-[11px] border-t border-gray-100 pt-2 mt-2">
+                        <button onclick="prepararEdicion('VENTA', ${v.id})" class="text-blue-600 font-bold bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded transition">✏️ Editar</button>
+                        <button onclick="eliminarRegistro('VENTA', ${v.id})" class="text-red-500 font-bold bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded transition">🗑️ Borrar</button>
                     </div>`;
                     l.appendChild(e);
                 });
@@ -954,16 +1185,52 @@
             objetoEditando = { tipo: t, id }; let h = '';
             if(t === 'COMPRA') {
                 const f = estado.compras.find(c => c.id === id);
-                h += `<div><label class='block font-bold mb-1 text-gray-700'>Costo Flete (Bs)</label><input type='text' inputmode='decimal' id='edit-f-taxi' class='w-full p-2 border rounded bg-gray-50' value='${f.taxiBs}'></div><hr class='my-3'>`;
-                f.productos.forEach((p, x) => { h += `<div class='bg-gray-50 p-3 rounded mb-2 border'><p class='font-bold text-blue-700 font-mono mb-2'>${p.nombre}</p><div class='grid grid-cols-2 gap-2'><div><label class='text-[10px] text-gray-500 font-bold'>Base(Bs)</label><input type='text' inputmode='decimal' id='edit-p-base-${x}' class='w-full p-2 border rounded' value='${p.precioBaseBs}'></div><div><label class='text-[10px] text-gray-500 font-bold'>Cantidad</label><input type='text' inputmode='numeric' id='edit-p-cant-${x}' class='w-full p-2 border rounded' value='${p.cant}'></div></div></div>`; });
+                h += `
+                    <div>
+                        <label class='block font-bold mb-1 text-gray-700'>Costo Flete (Bs)</label>
+                        <input type='text' inputmode='decimal' id='edit-f-taxi' class='w-full p-2 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none' value='${f.taxiBs}'>
+                    </div>
+                    <hr class='my-4 border-gray-200'>
+                `;
+                f.productos.forEach((p, x) => { 
+                    h += `
+                    <div class='bg-gray-50 p-3 rounded-lg mb-3 border border-gray-200 shadow-sm'>
+                        <p class='font-bold text-blue-700 font-mono mb-2'>${p.nombre}</p>
+                        <div class='grid grid-cols-2 gap-3'>
+                            <div>
+                                <label class='text-[10px] text-gray-500 font-bold uppercase'>Base(Bs)</label>
+                                <input type='text' inputmode='decimal' id='edit-p-base-${x}' class='w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500' value='${p.precioBaseBs}'>
+                            </div>
+                            <div>
+                                <label class='text-[10px] text-gray-500 font-bold uppercase'>Cantidad</label>
+                                <input type='text' inputmode='numeric' id='edit-p-cant-${x}' class='w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500' value='${p.cant}'>
+                            </div>
+                        </div>
+                    </div>`; 
+                });
             } else if(t === 'VENTA') {
                 const v = estado.ventas.find(x => x.id === id);
-                h += `<div><label class='block font-bold mb-1 text-gray-700'>Nombre del Cliente</label><input type='text' id='edit-v-cliente' class='w-full p-2 border rounded bg-gray-50' value='${v.cliente}'></div><div class='mt-3'><label class='block font-bold mb-1 text-gray-700'>Total Abonado Histórico ($)</label><input type='text' inputmode='decimal' id='edit-v-abonado' class='w-full p-2 border rounded bg-gray-50 text-blue-600 font-bold' value='${v.abonado || 0}'></div>`;
+                h += `
+                    <div>
+                        <label class='block font-bold mb-1 text-gray-700'>Nombre del Cliente</label>
+                        <input type='text' id='edit-v-cliente' class='w-full p-2 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-orange-500 outline-none' value='${v.cliente}'>
+                    </div>
+                    <div class='mt-4'>
+                        <label class='block font-bold mb-1 text-gray-700'>Total Abonado Histórico ($)</label>
+                        <input type='text' inputmode='decimal' id='edit-v-abonado' class='w-full p-2 border rounded-lg bg-white shadow-inner text-blue-600 font-bold focus:ring-2 focus:ring-blue-500 outline-none' value='${v.abonado || 0}'>
+                    </div>
+                `;
             } else if(t === 'CREDITO') {
                 const c = estado.creditos.find(x => x.id === id);
-                h += `<div><label class='block font-bold mb-1 text-gray-700'>Monto de la Deuda ($)</label><input type='text' inputmode='decimal' id='edit-c-monto' class='w-full p-2 border rounded bg-gray-50' value='${c.montoUSDT}'></div>`;
+                h += `
+                    <div>
+                        <label class='block font-bold mb-1 text-gray-700'>Monto de la Deuda ($)</label>
+                        <input type='text' inputmode='decimal' id='edit-c-monto' class='w-full p-2 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-purple-500 outline-none' value='${c.montoUSDT}'>
+                    </div>
+                `;
             }
-            document.getElementById('modal-editar-body').innerHTML = h; abrirModal('modal-editar');
+            document.getElementById('modal-editar-body').innerHTML = h; 
+            abrirModal('modal-editar');
         }
 
         function guardarEdicionGuardada() {
@@ -972,18 +1239,34 @@
                 const f = estado.compras.find(c => c.id === id); f.taxiBs = parseNum(document.getElementById('edit-f-taxi').value);
                 let tU = 0;
                 f.productos.forEach((p, x) => {
-                    p.precioBaseBs = parseNum(document.getElementById(`edit-p-base-${x}`).value); p.cant = parseInt(parseNum(document.getElementById(`edit-p-cant-${x}`).value));
-                    p.costoProvUSD = (p.precioBaseBs * 1.16) / f.tasaBCV; tU += (p.costoProvUSD * p.cant);
-                }); f.totalUSD = tU;
+                    p.precioBaseBs = parseNum(document.getElementById(`edit-p-base-${x}`).value); 
+                    p.cant = parseInt(parseNum(document.getElementById(`edit-p-cant-${x}`).value));
+                    p.costoProvUSD = (p.precioBaseBs * 1.16) / f.tasaBCV; 
+                    tU += (p.costoProvUSD * p.cant);
+                }); 
+                f.totalUSD = tU;
                 const fac = tU > 0 ? ((f.taxiBs / f.tasaBCV) / tU) : 0; 
-                f.productos.forEach(p => { p.fleteAsignadoUnit = p.costoProvUSD * fac; p.costoRealUnit = p.costoProvUSD + p.fleteAsignadoUnit; p.totalFilaUSD = p.costoRealUnit * p.cant; }); 
+                f.productos.forEach(p => { 
+                    p.fleteAsignadoUnit = p.costoProvUSD * fac; 
+                    p.costoRealUnit = p.costoProvUSD + p.fleteAsignadoUnit; 
+                    p.totalFilaUSD = p.costoRealUnit * p.cant; 
+                }); 
                 f.totalUSD = f.productos.reduce((s, p) => s + p.totalFilaUSD, 0);
             } else if(t === 'VENTA') {
-                const v = estado.ventas.find(x => x.id === id); v.cliente = document.getElementById('edit-v-cliente').value; v.abonado = parseNum(document.getElementById('edit-v-abonado').value); v.estatus = v.abonado >= v.monto ? 'COBRADO' : 'PENDIENTE';
+                const v = estado.ventas.find(x => x.id === id); 
+                v.cliente = document.getElementById('edit-v-cliente').value; 
+                v.abonado = parseNum(document.getElementById('edit-v-abonado').value); 
+                v.estatus = v.abonado >= v.monto ? 'COBRADO' : 'PENDIENTE';
             } else if(t === 'CREDITO') {
-                const c = estado.creditos.find(x => x.id === id); c.montoUSDT = parseNum(document.getElementById('edit-c-monto').value); c.brechaCambiaria = ((c.montoUSDT * c.tasaP2P) / c.tasaBCV) - c.montoUSDT;
+                const c = estado.creditos.find(x => x.id === id); 
+                c.montoUSDT = parseNum(document.getElementById('edit-c-monto').value); 
+                c.brechaCambiaria = ((c.montoUSDT * c.tasaP2P) / c.tasaBCV) - c.montoUSDT;
             }
-            guardarEnLocalStorage(); cerrarModal('modal-editar'); renderCompras(); renderVentas(); renderCarteraConsolidada(); renderCreditos(); renderInventario(); actualizarDashboard();
+            
+            guardarEnLocalStorage(); 
+            cerrarModal('modal-editar'); 
+            renderCompras(); renderVentas(); renderCarteraConsolidada(); renderCreditos(); renderInventario(); actualizarDashboard();
+            mostrarToast("Cambios guardados con éxito", "success");
         }
 
         function eliminarRegistro(t, id) {
@@ -991,23 +1274,57 @@
             if(t === 'COMPRA') estado.compras = estado.compras.filter(c => c.id !== id);
             if(t === 'VENTA') estado.ventas = estado.ventas.filter(v => v.id !== id);
             if(t === 'CREDITO') estado.creditos = estado.creditos.filter(c => c.id !== id);
-            guardarEnLocalStorage(); renderCompras(); renderVentas(); renderCarteraConsolidada(); renderCreditos(); renderInventario(); actualizarDashboard();
+            
+            guardarEnLocalStorage(); 
+            renderCompras(); renderVentas(); renderCarteraConsolidada(); renderCreditos(); renderInventario(); actualizarDashboard();
+            mostrarToast("Registro eliminado", "success");
         }
 
         function onSubmitCredito(e) {
-            e.preventDefault(); const f = document.getElementById('credito-fuente').value; const m = parseNum(document.getElementById('credito-monto').value);
-            const p = parseNum(document.getElementById('credito-p2p').value); estado.creditos.push({ id: Date.now(), fecha: document.getElementById('credito-fecha').value, fuente: f, montoUSDT: m, tasaP2P: p, tasaBCV: tasaBCVGlobal, brechaCambiaria: ((m * p) / tasaBCVGlobal) - m, estatus: 'DEBIENDO' });
-            e.target.reset(); document.getElementById('credito-fecha').value = obtenerFechaActualLocal(); guardarEnLocalStorage(); renderCreditos(); actualizarDashboard();
+            e.preventDefault(); 
+            const f = document.getElementById('credito-fuente').value; 
+            const m = parseNum(document.getElementById('credito-monto').value);
+            const p = parseNum(document.getElementById('credito-p2p').value); 
+            
+            estado.creditos.push({ 
+                id: Date.now(), fecha: document.getElementById('credito-fecha').value, 
+                fuente: f, montoUSDT: m, tasaP2P: p, tasaBCV: tasaBCVGlobal, 
+                brechaCambiaria: ((m * p) / tasaBCVGlobal) - m, estatus: 'DEBIENDO' 
+            });
+            
+            e.target.reset(); 
+            document.getElementById('credito-fecha').value = obtenerFechaActualLocal(); 
+            guardarEnLocalStorage(); renderCreditos(); actualizarDashboard();
+            mostrarToast("Deuda registrada", "success");
         }
         
-        function toggleEstatusCredito(id) { const c = estado.creditos.find(x => x.id === id); if(c) { c.estatus = (c.estatus === 'DEBIENDO') ? 'PAGADO' : 'DEBIENDO'; guardarEnLocalStorage(); renderCreditos(); actualizarDashboard(); } }
+        function toggleEstatusCredito(id) { 
+            const c = estado.creditos.find(x => x.id === id); 
+            if(c) { 
+                c.estatus = (c.estatus === 'DEBIENDO') ? 'PAGADO' : 'DEBIENDO'; 
+                guardarEnLocalStorage(); renderCreditos(); actualizarDashboard(); 
+            } 
+        }
 
         function renderCreditos() {
             const l = document.getElementById('lista-creditos'); if(!l) return; l.innerHTML = '';
             [...estado.creditos].reverse().forEach(c => {
                 const e = document.createElement('div'); const es = c.estatus === 'DEBIENDO';
-                e.className = `bg-white p-3 rounded-lg shadow border-l-4 ${es ? 'border-purple-500' : 'border-gray-300 opacity-70'} mb-2`;
-                e.innerHTML = `<div class="flex justify-between items-center"><div><p class="font-bold text-gray-800">${c.fuente}</p><p class="text-xs ${es ? 'text-purple-700 font-bold' : 'text-gray-400 line-through'}">$${fmt(c.montoUSDT)}</p></div><button onclick="toggleEstatusCredito(${c.id})" class="text-xs font-bold ${es ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'} px-3 py-1.5 rounded shadow-sm active:scale-95">${es ? 'Liquidar' : 'Deshacer'}</button></div><div class="flex justify-end gap-3 text-[11px] mt-2 pt-2 border-t"><button onclick="prepararEdicion('CREDITO', ${c.id})" class="text-blue-600 bg-blue-50 px-2 py-1 rounded">✏️ Edit</button><button onclick="eliminarRegistro('CREDITO', ${c.id})" class="text-red-500 bg-red-50 px-2 py-1 rounded">🗑️ Del</button></div>`;
+                e.className = `bg-white p-4 rounded-xl shadow-sm border-l-4 ${es ? 'border-purple-500' : 'border-gray-300 opacity-70'} mb-3 transition`;
+                e.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="font-bold text-gray-800">${c.fuente}</p>
+                            <p class="text-sm ${es ? 'text-purple-700 font-black' : 'text-gray-400 line-through'} mt-1">$${fmt(c.montoUSDT)}</p>
+                        </div>
+                        <button onclick="toggleEstatusCredito(${c.id})" class="text-xs font-bold ${es ? 'bg-purple-100 hover:bg-purple-200 text-purple-700' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'} px-4 py-2 rounded-lg shadow-sm active:scale-95 transition-colors">
+                            ${es ? 'Liquidar' : 'Deshacer'}
+                        </button>
+                    </div>
+                    <div class="flex justify-end gap-2 text-[11px] mt-3 pt-3 border-t border-gray-100">
+                        <button onclick="prepararEdicion('CREDITO', ${c.id})" class="text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded transition">✏️ Editar</button>
+                        <button onclick="eliminarRegistro('CREDITO', ${c.id})" class="text-red-500 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded transition">🗑️ Borrar</button>
+                    </div>`;
                 l.appendChild(e);
             });
         }
@@ -1018,13 +1335,11 @@
             let costoVentasTotalesHist = 0;
             let costosPromedio = obtenerCostosPromedio();
             
-            // 1) Calcular el Resumen de Caja Real (Global) - ESTO NO SE REINICIA
             estado.ventas.forEach(v => { 
                 cal += (v.monto - (v.abonado || 0)); 
                 caj += (v.abonado || 0); 
             });
 
-            // 2) Calcular SOLO el rendimiento desde el último corte guardado
             let ventasFiltradas = estado.ventas.filter(v => v.id > (estado.cortePeriodoTimestamp || 0));
             ventasFiltradas.forEach(v => {
                 ventasTotalesHist += v.monto;
@@ -1050,13 +1365,23 @@
             
             const recompraReal = caj - d;
             document.getElementById('txt-recompra').innerText = `$${fmt(recompraReal)}`;
+            
+            // Cambiar color del semáforo según el saldo
+            const semaforo = document.getElementById('semaforo');
+            if(recompraReal < 0) {
+                semaforo.className = "p-4 rounded-xl text-center font-bold text-white bg-red-500 mb-2 mt-2 shadow-inner transition-colors duration-300";
+            } else if (recompraReal < 50) {
+                semaforo.className = "p-4 rounded-xl text-center font-bold text-white bg-yellow-500 mb-2 mt-2 shadow-inner transition-colors duration-300";
+            } else {
+                semaforo.className = "p-4 rounded-xl text-center font-bold text-white bg-blue-500 mb-2 mt-2 shadow-inner transition-colors duration-300";
+            }
 
             if(document.getElementById('txt-ventas-totales')) document.getElementById('txt-ventas-totales').innerText = `$${fmt(ventasTotalesHist)}`;
             if(document.getElementById('txt-costo-ventas')) document.getElementById('txt-costo-ventas').innerText = `-$${fmt(costoVentasTotalesHist)}`;
             if(document.getElementById('txt-ganancia-bruta')) document.getElementById('txt-ganancia-bruta').innerText = `$${fmt(ventasTotalesHist - costoVentasTotalesHist)}`;
         }
 
-        // --- CIERRES DE PERIODO CORREGIDOS ---
+        // --- EXPORTACIÓN MEJORADA ---
         function ejecutarCierrePeriodo() {
             const tipo = document.getElementById('tipo-cierre-periodo').value;
             if(!confirm(`¿Deseas realizar un corte de ${tipo}? Esto guardará los contadores actuales y reiniciará el rendimiento acumulado en pantalla.`)) return;
@@ -1089,13 +1414,12 @@
 
             if(!estado.historialCierres) estado.historialCierres = [];
             estado.historialCierres.push(cierreData);
-            
             estado.cortePeriodoTimestamp = corteTimestamp;
             
             guardarEnLocalStorage();
             actualizarDashboard();
             renderHistorialCortesPeriodo();
-            alert(`Corte de ${tipo} ejecutado y contadores reiniciados con éxito.`);
+            mostrarToast(`Corte de ${tipo} guardado exitosamente`, "success");
         }
 
         function verDetalleCortePeriodo(id) {
@@ -1153,10 +1477,10 @@
             });
         }
 
-        // --- EXCEL NATIVO CON SHEETJS (CON HISTORIAL DESCARGABLE) ---
+        // MEJORA: Exportación a Excel que también incluye el detalle de los productos
         function descargarCierreExcel() {
             if(estado.compras.length === 0 && estado.ventas.length === 0) {
-                alert("No hay datos suficientes para generar un cierre."); return;
+                mostrarToast("No hay datos suficientes para generar un Excel.", "error"); return;
             }
 
             const btn = document.getElementById('btn-cierre');
@@ -1172,31 +1496,31 @@
                 ];
 
                 const wb = XLSX.utils.book_new();
-                
                 const wsResumen = XLSX.utils.json_to_sheet(datosResumen);
                 XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen General");
 
                 if(estado.ventas.length > 0) {
-                    const wsVentas = XLSX.utils.json_to_sheet(estado.ventas.map(v => ({
+                    const dataVentas = estado.ventas.map(v => ({
                         Fecha: v.fecha,
                         Cliente: v.cliente,
                         MontoTotalUSD: v.monto,
                         AbonadoUSD: v.abonado || 0,
-                        Estatus: v.estatus
-                    })));
-                    XLSX.utils.book_append_sheet(wb, wsVentas, "Ventas");
+                        Estatus: v.estatus,
+                        DetalleProductos: v.productos ? v.productos.map(p => `${p.cant}x ${p.nombre}`).join(', ') : 'Sin detalle'
+                    }));
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataVentas), "Ventas");
                 }
 
                 if(estado.compras.length > 0) {
-                    const wsCompras = XLSX.utils.json_to_sheet(estado.compras.map(c => ({
+                    const dataCompras = estado.compras.map(c => ({
                         Fecha: c.fecha,
-                        ID: c.id,
+                        ID_Factura: c.id,
                         TotalUSD: c.totalUSD,
                         FleteBs: c.taxiBs,
                         TasaBCV: c.tasaBCV,
-                        Articulos: c.productos ? c.productos.length : 0
-                    })));
-                    XLSX.utils.book_append_sheet(wb, wsCompras, "Compras");
+                        DetalleProductos: c.productos ? c.productos.map(p => `${p.cant}x ${p.nombre}`).join(', ') : 'Sin detalle'
+                    }));
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataCompras), "Compras");
                 }
 
                 const nombreArchivo = `Cierre_ERP_${obtenerFechaActualLocal()}.xlsx`;
@@ -1213,7 +1537,7 @@
                 });
                 guardarEnLocalStorage();
                 renderHistorialCierres();
-                
+                mostrarToast("Archivo Excel descargado exitosamente", "success");
             }, 800);
         }
 
@@ -1229,8 +1553,7 @@
             ];
 
             const wb = XLSX.utils.book_new();
-            const wsResumen = XLSX.utils.json_to_sheet(datosResumen);
-            XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen General");
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosResumen), "Resumen General");
 
             if(ventasRef.length > 0) {
                 const wsVentas = XLSX.utils.json_to_sheet(ventasRef.map(v => ({
@@ -1249,8 +1572,7 @@
                     ID: c.id,
                     TotalUSD: c.totalUSD,
                     FleteBs: c.taxiBs,
-                    TasaBCV: c.tasaBCV,
-                    Articulos: c.productos ? c.productos.length : 0
+                    TasaBCV: c.tasaBCV
                 })));
                 XLSX.utils.book_append_sheet(wb, wsCompras, "Compras");
             }
@@ -1270,13 +1592,13 @@
             container.innerHTML = '';
             [...estado.cierres].reverse().forEach(c => {
                 const el = document.createElement('div');
-                el.className = "flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100 text-[11px]";
+                el.className = "flex justify-between items-center bg-gray-50 hover:bg-gray-100 p-3 rounded-lg border border-gray-200 text-[11px] transition-colors";
                 el.innerHTML = `
                     <div>
-                        <span class="text-gray-600 font-semibold block">${c.fecha}</span>
+                        <span class="text-gray-500 font-semibold block mb-0.5">📅 ${c.fecha}</span>
                         <span class="text-blue-600 font-mono font-bold">${c.nombre}</span>
                     </div>
-                    <button onclick="descargarRespaldoExistente(${c.id})" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-2.5 py-1 rounded font-bold shadow-sm">📥 Descargar</button>
+                    <button onclick="descargarRespaldoExistente(${c.id})" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-3 py-1.5 rounded-lg font-bold shadow-sm transition">📥 Bajar</button>
                 `;
                 container.appendChild(el);
             });

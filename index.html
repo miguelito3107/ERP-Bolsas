@@ -335,6 +335,15 @@
                 <button onclick="registrarAjuste()" class="w-full bg-red-100 hover:bg-red-200 active:scale-95 text-red-700 p-2 rounded-lg text-xs font-bold border border-red-300 transition">➖ Eliminar Bultos del Sistema</button>
             </div>
 
+            <!-- HISTORIAL DE MERMAS / AJUSTES -->
+            <div class="bg-white p-4 rounded-xl shadow space-y-3 border-t-4 border-red-500">
+                <h3 class="text-sm font-bold text-gray-800 border-b pb-2">Historial de Modificaciones por Merma / Ajuste</h3>
+                <div class="flex gap-2">
+                    <input type="text" id="ajuste-filtro" oninput="renderHistorialAjustes()" placeholder="🔍 Buscar por producto o motivo..." class="w-full p-2 border rounded-lg text-xs bg-gray-50 font-medium text-gray-700 focus:ring-2 focus:ring-red-500 outline-none">
+                </div>
+                <div id="lista-historial-ajustes" class="space-y-2 max-h-48 overflow-y-auto pr-1"></div>
+            </div>
+
             <div class="bg-white p-4 rounded-xl shadow">
                 <div class="flex justify-between items-end border-b pb-2 mb-3">
                     <p class="text-xs font-bold text-gray-500 uppercase">Existencia y Valoración</p>
@@ -510,6 +519,7 @@
             renderCarteraConsolidada(); 
             renderCreditos(); 
             renderInventario(); 
+            renderHistorialAjustes();
             renderHistorialCierres(); 
             renderHistorialCortesPeriodo();
         }
@@ -645,7 +655,7 @@
             document.getElementById('tab-' + tabId).classList.add('active');
             
             actualizarDashboard();
-            if(tabId === 'inventario') renderInventario();
+            if(tabId === 'inventario') { renderInventario(); renderHistorialAjustes(); }
             if(tabId === 'ventas') { renderVentas(); renderCarteraConsolidada(); }
         }
         
@@ -915,8 +925,47 @@
             
             guardarEnLocalStorage(); 
             renderInventario(); 
+            renderHistorialAjustes();
             actualizarDashboard();
             mostrarToast(`Se redujeron ${cant} bultos de ${prod}`, "success");
+        }
+
+        function renderHistorialAjustes() {
+            const container = document.getElementById('lista-historial-ajustes');
+            if(!container) return;
+
+            const filtro = document.getElementById('ajuste-filtro') ? document.getElementById('ajuste-filtro').value.trim().toLowerCase() : "";
+            let ajustesArr = [...(estado.ajustes || [])];
+
+            if (filtro) {
+                ajustesArr = ajustesArr.filter(a => a.producto.toLowerCase().includes(filtro) || a.motivo.toLowerCase().includes(filtro) || a.fecha.includes(filtro));
+            }
+
+            container.innerHTML = '';
+            if (ajustesArr.length === 0) {
+                container.innerHTML = '<p class="text-[10px] text-gray-400 text-center py-2">No hay registros de mermas o ajustes.</p>';
+                return;
+            }
+
+            ajustesArr.reverse().forEach(a => {
+                const el = document.createElement('div');
+                el.className = "bg-red-50 p-2.5 rounded-lg border border-red-200 text-xs flex justify-between items-center transition shadow-sm mb-2";
+                el.innerHTML = `
+                    <div class="space-y-0.5">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-red-900 font-mono">${a.producto}</span>
+                            <span class="bg-red-200 text-red-800 text-[10px] px-1.5 py-0.5 rounded font-bold">-${a.cant} bultos</span>
+                        </div>
+                        <p class="text-[11px] text-gray-600">📝 ${a.motivo}</p>
+                        <p class="text-[9px] text-gray-400">📅 ${a.fecha}</p>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <button onclick="prepararEdicion('AJUSTE', ${a.id})" class="text-blue-600 bg-white hover:bg-blue-50 p-1.5 rounded shadow-sm border border-red-100 transition text-xs" title="Editar">✏️</button>
+                        <button onclick="eliminarRegistro('AJUSTE', ${a.id})" class="text-red-600 bg-white hover:bg-red-50 p-1.5 rounded shadow-sm border border-red-100 transition text-xs" title="Eliminar">🗑️</button>
+                    </div>
+                `;
+                container.appendChild(el);
+            });
         }
 
         function renderInventario() {
@@ -1228,6 +1277,28 @@
                         <input type='text' inputmode='decimal' id='edit-c-monto' class='w-full p-2 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-purple-500 outline-none' value='${c.montoUSDT}'>
                     </div>
                 `;
+            } else if(t === 'AJUSTE') {
+                const a = estado.ajustes.find(x => x.id === id);
+                let optionsHtml = '';
+                MAESTRO_PRODUCTOS.forEach(p => {
+                    optionsHtml += `<option value="${p}" ${p === a.producto ? 'selected' : ''}>${p}</option>`;
+                });
+                h += `
+                    <div>
+                        <label class='block font-bold mb-1 text-gray-700'>Producto</label>
+                        <select id='edit-a-prod' class='w-full p-2 border rounded-lg bg-gray-50 font-mono focus:ring-2 focus:ring-red-500 outline-none'>
+                            ${optionsHtml}
+                        </select>
+                    </div>
+                    <div class='mt-3'>
+                        <label class='block font-bold mb-1 text-gray-700'>Cantidad de Bultos</label>
+                        <input type='text' inputmode='numeric' id='edit-a-cant' class='w-full p-2 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-red-500 outline-none' value='${a.cant}'>
+                    </div>
+                    <div class='mt-3'>
+                        <label class='block font-bold mb-1 text-gray-700'>Motivo</label>
+                        <input type='text' id='edit-a-motivo' class='w-full p-2 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-red-500 outline-none' value='${a.motivo}'>
+                    </div>
+                `;
             }
             document.getElementById('modal-editar-body').innerHTML = h; 
             abrirModal('modal-editar');
@@ -1261,11 +1332,16 @@
                 const c = estado.creditos.find(x => x.id === id); 
                 c.montoUSDT = parseNum(document.getElementById('edit-c-monto').value); 
                 c.brechaCambiaria = ((c.montoUSDT * c.tasaP2P) / c.tasaBCV) - c.montoUSDT;
+            } else if(t === 'AJUSTE') {
+                const a = estado.ajustes.find(x => x.id === id);
+                a.producto = document.getElementById('edit-a-prod').value;
+                a.cant = parseInt(parseNum(document.getElementById('edit-a-cant').value));
+                a.motivo = document.getElementById('edit-a-motivo').value.trim() || 'Ajuste manual';
             }
             
             guardarEnLocalStorage(); 
             cerrarModal('modal-editar'); 
-            renderCompras(); renderVentas(); renderCarteraConsolidada(); renderCreditos(); renderInventario(); actualizarDashboard();
+            renderCompras(); renderVentas(); renderCarteraConsolidada(); renderCreditos(); renderInventario(); renderHistorialAjustes(); actualizarDashboard();
             mostrarToast("Cambios guardados con éxito", "success");
         }
 
@@ -1274,9 +1350,12 @@
             if(t === 'COMPRA') estado.compras = estado.compras.filter(c => c.id !== id);
             if(t === 'VENTA') estado.ventas = estado.ventas.filter(v => v.id !== id);
             if(t === 'CREDITO') estado.creditos = estado.creditos.filter(c => c.id !== id);
+            if(t === 'AJUSTE') estado.ajustes = estado.ajustes.filter(a => a.id !== id);
+            if(t === 'CORTE') estado.historialCierres = estado.historialCierres.filter(c => c.id !== id);
+            if(t === 'CIERRE') estado.cierres = estado.cierres.filter(c => c.id !== id);
             
             guardarEnLocalStorage(); 
-            renderCompras(); renderVentas(); renderCarteraConsolidada(); renderCreditos(); renderInventario(); actualizarDashboard();
+            renderCompras(); renderVentas(); renderCarteraConsolidada(); renderCreditos(); renderInventario(); renderHistorialAjustes(); renderHistorialCortesPeriodo(); renderHistorialCierres(); actualizarDashboard();
             mostrarToast("Registro eliminado", "success");
         }
 
@@ -1462,15 +1541,18 @@
             container.innerHTML = '';
             [...estado.historialCierres].reverse().forEach(c => {
                 const el = document.createElement('div');
-                el.className = "bg-indigo-50 hover:bg-indigo-100 active:scale-95 p-3 rounded-lg border border-indigo-200 text-[11px] flex justify-between items-center cursor-pointer transition shadow-sm";
+                el.className = "bg-indigo-50 hover:bg-indigo-100 active:scale-95 p-3 rounded-lg border border-indigo-200 text-[11px] flex justify-between items-center cursor-pointer transition shadow-sm mb-2";
                 el.setAttribute('onclick', `verDetalleCortePeriodo(${c.id})`);
                 el.innerHTML = `
                     <div>
                         <span class="font-bold text-indigo-900 text-xs">Corte ${c.tipo}</span>
                         <p class="text-[10px] text-gray-500 mt-0.5">${c.fecha}</p>
                     </div>
-                    <div class="text-right font-mono bg-white px-2 py-1 rounded shadow-sm border border-indigo-50">
-                        <span class="font-bold text-green-700">+$${fmt(c.ganancia)}</span>
+                    <div class="flex items-center gap-2">
+                        <div class="text-right font-mono bg-white px-2 py-1 rounded shadow-sm border border-indigo-50">
+                            <span class="font-bold text-green-700">+$${fmt(c.ganancia)}</span>
+                        </div>
+                        <button onclick="event.stopPropagation(); eliminarRegistro('CORTE', ${c.id})" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded transition text-xs" title="Eliminar">🗑️</button>
                     </div>
                 `;
                 container.appendChild(el);
@@ -1592,13 +1674,16 @@
             container.innerHTML = '';
             [...estado.cierres].reverse().forEach(c => {
                 const el = document.createElement('div');
-                el.className = "flex justify-between items-center bg-gray-50 hover:bg-gray-100 p-3 rounded-lg border border-gray-200 text-[11px] transition-colors";
+                el.className = "flex justify-between items-center bg-gray-50 hover:bg-gray-100 p-3 rounded-lg border border-gray-200 text-[11px] transition-colors mb-2";
                 el.innerHTML = `
                     <div>
                         <span class="text-gray-500 font-semibold block mb-0.5">📅 ${c.fecha}</span>
                         <span class="text-blue-600 font-mono font-bold">${c.nombre}</span>
                     </div>
-                    <button onclick="descargarRespaldoExistente(${c.id})" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-3 py-1.5 rounded-lg font-bold shadow-sm transition">📥 Bajar</button>
+                    <div class="flex gap-2">
+                        <button onclick="descargarRespaldoExistente(${c.id})" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-3 py-1.5 rounded-lg font-bold shadow-sm transition">📥 Bajar</button>
+                        <button onclick="eliminarRegistro('CIERRE', ${c.id})" class="bg-red-100 hover:bg-red-200 active:scale-95 text-red-600 px-3 py-1.5 rounded-lg font-bold shadow-sm transition">🗑️ Borrar</button>
+                    </div>
                 `;
                 container.appendChild(el);
             });
